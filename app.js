@@ -75,6 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
         data: '',
         turno: '',
         frota: '',
+        modelo: '',
         answers: {}, // Estrutura: { questionId: { value: 'Sim'|'Não', details: 'Texto opcional' } }
         declarationConfirmed: false,
         nextShiftNotes: ''
@@ -146,6 +147,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data.name) {
                     fleets.push({
                         name: data.name,
+                        model: data.model || '',
                         order: data.order ?? 0
                     });
                 }
@@ -165,6 +167,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const opt = document.createElement('option');
                 opt.value = fleet.name;
                 opt.textContent = fleet.name;
+                opt.setAttribute('data-modelo', fleet.model || 'Inspeção Diária');
                 selectFrota.appendChild(opt);
             });
         } catch (error) {
@@ -869,6 +872,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (selectFrota) {
         selectFrota.addEventListener('change', async (e) => {
             const selectedVehicle = e.target.value;
+            const selectedOption = selectFrota.options[selectFrota.selectedIndex];
+            state.modelo = selectedOption ? (selectedOption.getAttribute('data-modelo') || 'Inspeção Diária') : 'Inspeção Diária';
+
             if (!selectedVehicle) {
                 prevShiftNotesContainer.style.display = 'none';
                 return;
@@ -938,15 +944,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Fleet
         document.getElementById('bulletin-frota').textContent = state.frota;
         
-        // Model (Extract model from fleet name if possible, or fallback)
-        let modelo = "Inspeção Diária";
-        if (state.frota.includes("Caminhão Pipa")) modelo = "Mercedes-Benz / Ford";
-        else if (state.frota.includes("Escavadeira")) modelo = "Caterpillar / Komatsu";
-        else if (state.frota.includes("Empilhadeira")) modelo = "Toyota / Hyster";
-        else if (state.frota.includes("Pá Carregadeira")) modelo = "Volvo / CAT";
-        else if (state.frota.includes("Trator")) modelo = "John Deere / CAT";
-        else if (state.frota.includes("Caminhão Caçamba")) modelo = "Volvo FMX";
-        document.getElementById('bulletin-modelo').textContent = modelo;
+        // Model
+        document.getElementById('bulletin-modelo').textContent = state.modelo || 'Inspeção Diária';
 
         // Reset all driver and matrícula fields
         document.getElementById('bulletin-driver-a').textContent = '-';
@@ -1022,7 +1021,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td style="border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold; font-size: 11px;">${isTurnoC ? noMark : ''}</td>
                 
                 <!-- Observation column -->
-                <td style="border: 1px solid #000; padding: 5px; font-size: 9px; font-style: italic;">${answerObj.details || ''}</td>
+                <td style="border: 1px solid #000; padding: 5px; font-size: 9px; font-style: italic; word-break: break-word; max-width: 150px;">${answerObj.details || ''}</td>
             `;
 
             rowsContainer.appendChild(row);

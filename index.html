@@ -307,7 +307,7 @@
     </div>
 
     <!-- TEMPLATE DO BOLETIM PARA CAPTURA (Oculto da tela, exportado como imagem) -->
-    <div id="bulletin-capture-template" class="bulletin-capture-container" style="position: absolute; left: -9999px; top: 0; width: 800px; background-color: #ffffff; color: #000000; padding: 25px; font-family: Arial, sans-serif; box-sizing: border-box; border: 2px solid #000;">
+    <div id="bulletin-capture-template" class="bulletin-capture-container" style="position: fixed; left: 0; top: 0; z-index: -1000; opacity: 0; pointer-events: none; width: 800px; background-color: #ffffff; color: #000000; padding: 25px; font-family: Arial, sans-serif; box-sizing: border-box; border: 2px solid #000;">
         <div class="bulletin-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 15px;">
             <div class="bulletin-logo-left" style="font-size: 24px; font-weight: 900; letter-spacing: 2px;">X5X</div>
             <div class="bulletin-title-container" style="text-align: center; flex-grow: 1;">
@@ -397,9 +397,9 @@
             </thead>
             <tbody>
                 <tr>
-                    <td id="bulletin-note-a" style="border: 1px solid #000; padding: 10px; font-size: 10px; height: 50px; vertical-align: top; font-style: italic;">-</td>
-                    <td id="bulletin-note-b" style="border: 1px solid #000; padding: 10px; font-size: 10px; height: 50px; vertical-align: top; font-style: italic;">-</td>
-                    <td id="bulletin-note-c" style="border: 1px solid #000; padding: 10px; font-size: 10px; height: 50px; vertical-align: top; font-style: italic;">-</td>
+                    <td id="bulletin-note-a" style="border: 1px solid #000; padding: 10px; font-size: 10px; height: 50px; vertical-align: top; font-style: italic; word-break: break-word; max-width: 240px;">-</td>
+                    <td id="bulletin-note-b" style="border: 1px solid #000; padding: 10px; font-size: 10px; height: 50px; vertical-align: top; font-style: italic; word-break: break-word; max-width: 240px;">-</td>
+                    <td id="bulletin-note-c" style="border: 1px solid #000; padding: 10px; font-size: 10px; height: 50px; vertical-align: top; font-style: italic; word-break: break-word; max-width: 240px;">-</td>
                 </tr>
             </tbody>
         </table>

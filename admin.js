@@ -45,6 +45,7 @@ const reportsTableRows = document.getElementById('reports-table-rows');
 
 // Elementos do DOM: Cadastro de Frota
 const newFleetName = document.getElementById('new-fleet-name');
+const newFleetModel = document.getElementById('new-fleet-model');
 const btnAddFleet = document.getElementById('btn-add-fleet');
 const fleetsList = document.getElementById('fleets-list');
 const addFleetForm = document.getElementById('add-fleet-form');
@@ -112,7 +113,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     addFleetForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const name = newFleetName.value.trim();
-        if (!name) return;
+        const model = newFleetModel.value.trim();
+        if (!name || !model) return;
 
         // Evita duplicados
         const exists = localFleets.some(f => f.name.toLowerCase() === name.toLowerCase());
@@ -130,11 +132,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             await addDoc(collection(db, "fleets"), {
                 name: name,
+                model: model,
                 order: nextOrder,
                 timestamp: serverTimestamp()
             });
 
             newFleetName.value = '';
+            newFleetModel.value = '';
             await loadFleetsData();
             renderFleets();
             populateFleetFilters();
@@ -238,7 +242,7 @@ function renderFleets() {
         const disableDown = index === localFleets.length - 1 ? 'disabled style="opacity: 0.25; cursor: not-allowed;"' : '';
 
         item.innerHTML = `
-            <span class="fleet-name">${fleet.name}</span>
+            <span class="fleet-name">${fleet.name} <span style="font-size: 0.75rem; color: var(--text-secondary); font-style: italic;">(${fleet.model || '-'})</span></span>
             <div class="fleet-actions">
                 <button type="button" class="btn-icon-only btn-move-up" data-id="${fleet.id}" title="Mover para Cima" ${disableUp}>
                     ▲
@@ -246,7 +250,7 @@ function renderFleets() {
                 <button type="button" class="btn-icon-only btn-move-down" data-id="${fleet.id}" title="Mover para Baixo" ${disableDown}>
                     ▼
                 </button>
-                <button type="button" class="btn-icon-only btn-edit" data-id="${fleet.id}" data-name="${fleet.name}" title="Editar Nome">
+                <button type="button" class="btn-icon-only btn-edit" data-id="${fleet.id}" data-name="${fleet.name}" data-model="${fleet.model || ''}" title="Editar Nome/Modelo">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                         <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4z"/>
@@ -383,18 +387,28 @@ function renderChecklists() {
 async function handleEditFleet(target) {
     const id = target.getAttribute('data-id');
     const oldName = target.getAttribute('data-name');
+    const oldModel = target.getAttribute('data-model') || '';
     const newName = prompt("Editar nome do veículo da frota:", oldName);
 
     if (newName === null) return; // Cancelado
-    const trimmed = newName.trim();
-    if (!trimmed) {
+    const trimmedName = newName.trim();
+    if (!trimmedName) {
         alert("O nome do veículo não pode ser vazio.");
+        return;
+    }
+
+    const newModel = prompt("Editar modelo do veículo:", oldModel);
+    if (newModel === null) return; // Cancelado
+    const trimmedModel = newModel.trim();
+    if (!trimmedModel) {
+        alert("O modelo do veículo não pode ser vazio.");
         return;
     }
 
     try {
         await updateDoc(doc(db, "fleets", id), {
-            name: trimmed
+            name: trimmedName,
+            model: trimmedModel
         });
         await loadFleetsData();
         renderFleets();
@@ -491,7 +505,7 @@ function showChecklistDetails(checklistId) {
     modalMatricula.textContent = record.matricula || '-';
     modalNome.textContent = record.nome || '-';
     modalTurno.textContent = record.turno || '-';
-    modalFrota.textContent = record.frota || '-';
+    modalFrota.textContent = record.modelo ? `${record.frota} (${record.modelo})` : (record.frota || '-');
 
     // Notas de Passagem de turno
     if (record.nextShiftNotes && record.nextShiftNotes.trim() !== '') {
