@@ -902,7 +902,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Escuta a seleção de frota para buscar as notas do turno anterior
-    const selectFrota = document.getElementById('frota');
     if (selectFrota) {
         selectFrota.addEventListener('change', async (e) => {
             const selectedVehicle = e.target.value;
