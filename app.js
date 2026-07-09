@@ -1,0 +1,743 @@
+/**
+ * Checklist Central - Lógica da Aplicação
+ * Gerenciamento de estado, fluxo de etapas, validações e resumo de dados.
+ */
+
+// Importações do Firebase SDK
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+// Configuração do Firebase fornecida pelo usuário
+const firebaseConfig = {
+  apiKey: "AIzaSyBlUHMGTfK46mYixMj8Z6ESBDdX8GkH32k",
+  authDomain: "checklistcentralusa.firebaseapp.com",
+  projectId: "checklistcentralusa",
+  storageBucket: "checklistcentralusa.firebasestorage.app",
+  messagingSenderId: "351671399772",
+  appId: "1:351671399772:web:d7c88b2130e12fc5ba7d99",
+  measurementId: "G-51G1V0W30R"
+};
+
+// Inicialização do Firebase e Firestore
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+document.addEventListener('DOMContentLoaded', () => {
+    // ==========================================================================
+    // CONFIGURAÇÃO DOS ITENS DO CHECKLIST
+    // ==========================================================================
+    // Facilmente expansível pelo usuário adicionando novos objetos ao array.
+    const checklistQuestions = [
+        {
+            id: 'oleo',
+            title: 'Nível do Óleo compatível?',
+            description: 'Verifique a vareta de óleo do motor. O nível deve estar entre as marcas de mínimo e máximo.',
+            category: 'Mecânica'
+        },
+        {
+            id: 'pneus_esteiras',
+            title: 'Pneus ou esteiras em bom estado?',
+            description: 'Verifique o desgaste, cortes profundos, bolhas ou calibragem visual de todos os pneus/esteiras.',
+            category: 'Rodagem'
+        },
+        {
+            id: 'freios',
+            title: 'Sistema de freios operacional?',
+            description: 'Teste o freio de serviço e o freio de estacionamento em área segura antes de iniciar as atividades.',
+            category: 'Segurança'
+        },
+        {
+            id: 'iluminacao_sonoro',
+            title: 'Sinalização luminosa e buzina funcionando?',
+            description: 'Teste faróis, lanternas traseiras, setas, giroflex, buzina e alarme de ré.',
+            category: 'Elétrica / Alertas'
+        },
+        {
+            id: 'vazamentos',
+            title: 'Ausência de vazamentos aparentes?',
+            description: 'Inspecione visualmente embaixo do veículo para identificar vazamentos de óleo, água ou fluído hidráulico.',
+            category: 'Mecânica'
+        },
+        {
+            id: 'cinto_seguranca',
+            title: 'Cinto de segurança em perfeitas condições?',
+            description: 'Verifique se o cinto está travando perfeitamente e se não apresenta rasgos ou desgaste excessivo.',
+            category: 'Segurança'
+        }
+    ];
+
+    // ==========================================================================
+    // ESTADO DA APLICAÇÃO
+    // ==========================================================================
+    const state = {
+        matricula: '',
+        nome: '',
+        turno: '',
+        frota: '',
+        answers: {}, // Estrutura: { questionId: { value: 'Sim'|'Não', details: 'Texto opcional' } }
+        declarationConfirmed: false
+    };
+
+    let currentStep = 1;
+    
+    // Passos fixos iniciais: 4 (Matrícula, Nome, Turno, Frota)
+    const fixedStepsCount = 4;
+    // Checklist dinâmico: checklistQuestions.length
+    // Passo de resumo final: 1
+    const totalSteps = fixedStepsCount + checklistQuestions.length + 1;
+
+    // ==========================================================================
+    // REFERÊNCIAS DOS ELEMENTOS DO DOM
+    // ==========================================================================
+    const form = document.getElementById('checklist-form');
+    const dynamicContainer = document.getElementById('dynamic-checklist-container');
+    const navControls = document.getElementById('nav-controls');
+    const btnBack = document.getElementById('btn-back');
+    const btnNext = document.getElementById('btn-next');
+    
+    const progressStepText = document.getElementById('progress-step-text');
+    const progressPercentage = document.getElementById('progress-percentage');
+    const progressFill = document.getElementById('progress-fill');
+
+    const summaryStep = document.getElementById('summary-step');
+    const successStep = document.getElementById('success-step');
+
+    // Elementos de Resumo
+    const sumMatricula = document.getElementById('sum-matricula');
+    const sumNome = document.getElementById('sum-nome');
+    const sumTurno = document.getElementById('sum-turno');
+    const sumFrota = document.getElementById('sum-frota');
+    const sumChecklistList = document.getElementById('sum-checklist-list');
+    const confirmDeclaration = document.getElementById('confirm-declaration');
+
+    // Elementos do Recibo
+    const receiptId = document.getElementById('receipt-id');
+    const receiptStatus = document.getElementById('receipt-status');
+    const receiptDate = document.getElementById('receipt-date');
+    const receiptVehicle = document.getElementById('receipt-vehicle');
+    const btnDownloadReport = document.getElementById('btn-download-report');
+    const btnRestart = document.getElementById('btn-restart');
+
+    // ==========================================================================
+    // INICIALIZAÇÃO E GERAÇÃO DINÂMICA DO CHECKLIST
+    // ==========================================================================
+    function initializeChecklist() {
+        dynamicContainer.innerHTML = ''; // Limpa conteúdo anterior
+        
+        checklistQuestions.forEach((question, index) => {
+            const stepNum = fixedStepsCount + 1 + index;
+            const stepCard = document.createElement('div');
+            stepCard.className = 'step-card';
+            stepCard.setAttribute('data-step', stepNum.toString());
+            stepCard.setAttribute('data-question-id', question.id);
+
+            stepCard.innerHTML = `
+                <div class="step-header">
+                    <div class="step-number">${String(stepNum).padStart(2, '0')}</div>
+                    <h2>${question.category}</h2>
+                    <p class="question-title">${question.title}</p>
+                    <span class="question-description" style="display: block; font-size: 0.85rem; color: var(--text-secondary); margin-top: 8px;">
+                        ${question.description}
+                    </span>
+                </div>
+                
+                <div class="input-group">
+                    <div class="option-buttons-container">
+                        <button type="button" class="btn-option btn-yes" data-value="Sim">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                            Sim
+                        </button>
+                        <button type="button" class="btn-option btn-no" data-value="Não">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="18" y1="6" x2="6" y2="18"/>
+                                <line x1="6" y1="6" x2="18" y2="18"/>
+                            </svg>
+                            Não
+                        </button>
+                    </div>
+                    
+                    <span class="validation-message" id="error-q-${question.id}">
+                        Por favor, selecione Sim ou Não para responder esta questão.
+                    </span>
+
+                    <div class="details-toggle-container">
+                        <button type="button" class="btn-details-toggle" id="btn-toggle-${question.id}">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="12" y1="5" x2="12" y2="19"/>
+                                <line x1="5" y1="12" x2="19" y2="12"/>
+                            </svg>
+                            + Detalhes
+                        </button>
+                    </div>
+
+                    <div class="details-textarea-wrapper" id="details-wrapper-${question.id}">
+                        <textarea id="details-text-${question.id}" placeholder="Escreva aqui detalhes adicionais sobre o estado do item..." autocomplete="off"></textarea>
+                    </div>
+                </div>
+            `;
+
+            dynamicContainer.appendChild(stepCard);
+
+            // Vincula Eventos aos Botões Sim/Não desta pergunta
+            const btnYes = stepCard.querySelector('.btn-yes');
+            const btnNo = stepCard.querySelector('.btn-no');
+            const btnToggle = stepCard.querySelector('.btn-details-toggle');
+            const detailsWrapper = stepCard.querySelector('.details-textarea-wrapper');
+            const detailsText = stepCard.querySelector('textarea');
+            const errorMsg = stepCard.querySelector('.validation-message');
+
+            const selectOption = (selectedValue) => {
+                // Atualiza o estado
+                if (!state.answers[question.id]) {
+                    state.answers[question.id] = { value: '', details: '' };
+                }
+                state.answers[question.id].value = selectedValue;
+
+                // Estiliza os botões do DOM
+                if (selectedValue === 'Sim') {
+                    btnYes.classList.add('selected');
+                    btnNo.classList.remove('selected');
+                } else {
+                    btnYes.classList.remove('selected');
+                    btnNo.classList.add('selected');
+                    
+                    // UX Extra: Se o usuário clica em "Não", e a caixa de detalhes não está aberta, abrimos automaticamente!
+                    // Isso orienta o operador a justificar a falha técnica identificada.
+                    if (!btnToggle.classList.contains('active')) {
+                        toggleDetails();
+                    }
+                }
+                
+                // Oculta mensagem de erro caso estivesse ativa
+                errorMsg.style.display = 'none';
+            };
+
+            btnYes.addEventListener('click', () => selectOption('Sim'));
+            btnNo.addEventListener('click', () => selectOption('Não'));
+
+            // Função para alternar detalhes
+            const toggleDetails = () => {
+                btnToggle.classList.toggle('active');
+                detailsWrapper.classList.toggle('show');
+                if (detailsWrapper.classList.contains('show')) {
+                    detailsText.focus();
+                }
+            };
+
+            btnToggle.addEventListener('click', toggleDetails);
+
+            // Escuta a digitação nos detalhes para gravar no estado
+            detailsText.addEventListener('input', (e) => {
+                if (!state.answers[question.id]) {
+                    state.answers[question.id] = { value: '', details: '' };
+                }
+                state.answers[question.id].details = e.target.value;
+            });
+        });
+
+        // Configura o número do passo do resumo de forma dinâmica
+        const summaryStepNumber = document.getElementById('summary-step-number');
+        if (summaryStepNumber) {
+            summaryStepNumber.textContent = String(totalSteps).padStart(2, '0');
+        }
+
+        // Exibe o primeiro passo
+        goToStep(1);
+    }
+
+    // ==========================================================================
+    // CONTROLE DE FLUXO & NAVEGAÇÃO ENTRE PASSOS
+    // ==========================================================================
+    function goToStep(stepNumber) {
+        // Oculta todas as telas/etapas
+        const allSteps = document.querySelectorAll('.step-card');
+        allSteps.forEach(card => card.classList.remove('active'));
+
+        // Exibe a etapa pretendida
+        if (stepNumber <= totalSteps) {
+            const activeCard = document.querySelector(`.step-card[data-step="${stepNumber}"]`);
+            if (activeCard) {
+                activeCard.classList.add('active');
+            } else if (stepNumber === totalSteps) {
+                summaryStep.classList.add('active');
+                summaryStep.style.display = 'block';
+                renderSummaryData();
+            }
+        }
+
+        currentStep = stepNumber;
+
+        // Atualiza a barra de progresso
+        updateProgressBar();
+
+        // Controla status dos botões de controle de fluxo
+        if (currentStep === 1) {
+            btnBack.disabled = true;
+        } else {
+            btnBack.disabled = false;
+        }
+
+        // Altera o rótulo do botão principal de avanço
+        if (currentStep === totalSteps) {
+            btnNext.innerHTML = `
+                Finalizar Checklist
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"/>
+                </svg>
+            `;
+            btnNext.style.background = 'linear-gradient(135deg, var(--color-success) 0%, #00b0ff 100%)';
+            btnNext.style.boxShadow = '0 4px 15px var(--color-success-glow)';
+        } else {
+            btnNext.innerHTML = `
+                Próximo
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                    <polyline points="12 5 19 12 12 19"/>
+                </svg>
+            `;
+            btnNext.style.background = ''; // Retorna ao padrão definido no CSS
+            btnNext.style.boxShadow = '';
+        }
+    }
+
+    function updateProgressBar() {
+        // Se estivermos na tela de sucesso final, não exibimos ou preenchemos a barra em 100%
+        if (successStep.style.display === 'block') {
+            progressStepText.textContent = "CONCLUÍDO";
+            progressPercentage.textContent = "100%";
+            progressFill.style.width = "100%";
+            return;
+        }
+
+        // Calcula porcentagem do progresso baseado no passo ativo
+        const pct = Math.round(((currentStep - 1) / (totalSteps - 1)) * 100);
+        progressPercentage.textContent = `${pct}%`;
+        progressFill.style.width = `${pct}%`;
+
+        // Altera texto descritivo
+        if (currentStep <= fixedStepsCount) {
+            progressStepText.textContent = `Identificação - Passo ${currentStep} de ${totalSteps}`;
+        } else if (currentStep < totalSteps) {
+            const questionIdx = currentStep - fixedStepsCount;
+            progressStepText.textContent = `Itens do Veículo - Passo ${currentStep} de ${totalSteps}`;
+        } else {
+            progressStepText.textContent = `Revisão Geral - Passo ${currentStep} de ${totalSteps}`;
+        }
+    }
+
+    // ==========================================================================
+    // VALIDAÇÃO DE CAMPOS E ENTRADA DO OPERADOR
+    // ==========================================================================
+    function validateCurrentStep() {
+        let isValid = true;
+        
+        // Remove mensagens de erro ativas da etapa
+        const activeCard = document.querySelector(`.step-card[data-step="${currentStep}"]`);
+        if (!activeCard && currentStep !== totalSteps) return false;
+
+        if (currentStep === 1) {
+            const inputMatricula = document.getElementById('matricula');
+            const val = inputMatricula.value.trim();
+            const error = document.getElementById('error-matricula');
+            
+            // Aceita matrículas com pelo menos 3 caracteres alfanuméricos
+            if (val.length < 3) {
+                error.style.display = 'flex';
+                inputMatricula.focus();
+                isValid = false;
+            } else {
+                error.style.display = 'none';
+                state.matricula = val;
+            }
+        }
+        else if (currentStep === 2) {
+            const inputNome = document.getElementById('nome');
+            const val = inputNome.value.trim();
+            const error = document.getElementById('error-nome');
+
+            // Exige nome completo mínimo
+            if (val.length < 3 || !val.includes(' ')) {
+                error.style.display = 'flex';
+                inputNome.focus();
+                isValid = false;
+            } else {
+                error.style.display = 'none';
+                state.nome = val;
+            }
+        }
+        else if (currentStep === 3) {
+            const selectTurno = document.getElementById('turno');
+            const val = selectTurno.value;
+            const error = document.getElementById('error-turno');
+
+            if (!val) {
+                error.style.display = 'flex';
+                isValid = false;
+            } else {
+                error.style.display = 'none';
+                state.turno = val;
+            }
+        }
+        else if (currentStep === 4) {
+            const selectFrota = document.getElementById('frota');
+            const val = selectFrota.value;
+            const error = document.getElementById('error-frota');
+
+            if (!val) {
+                error.style.display = 'flex';
+                isValid = false;
+            } else {
+                error.style.display = 'none';
+                state.frota = val;
+            }
+        }
+        else if (currentStep > fixedStepsCount && currentStep < totalSteps) {
+            // Valida as etapas dinâmicas de perguntas
+            const questionId = activeCard.getAttribute('data-question-id');
+            const answer = state.answers[questionId];
+            const error = document.getElementById(`error-q-${questionId}`);
+
+            if (!answer || !answer.value) {
+                error.style.display = 'flex';
+                isValid = false;
+            } else {
+                error.style.display = 'none';
+            }
+        }
+        else if (currentStep === totalSteps) {
+            // Valida o aceite da declaração final no resumo
+            const checkbox = document.getElementById('confirm-declaration');
+            const error = document.getElementById('error-confirm');
+
+            if (!checkbox.checked) {
+                error.style.display = 'flex';
+                isValid = false;
+            } else {
+                error.style.display = 'none';
+                state.declarationConfirmed = true;
+            }
+        }
+
+        return isValid;
+    }
+
+    // ==========================================================================
+    // RENDERIZAÇÃO DO RESUMO E PROCESSAMENTO FINAL
+    // ==========================================================================
+    function renderSummaryData() {
+        // Preenche campos de identificação
+        sumMatricula.textContent = state.matricula;
+        sumNome.textContent = state.nome;
+        sumTurno.textContent = state.turno;
+        sumFrota.textContent = state.frota;
+
+        // Limpa lista de checklist
+        sumChecklistList.innerHTML = '';
+
+        // Cria a visualização para cada item inspecionado
+        checklistQuestions.forEach(question => {
+            const answerObj = state.answers[question.id] || { value: 'Não respondido', details: '' };
+            const row = document.createElement('div');
+            row.className = 'summary-check-row';
+
+            const badgeClass = answerObj.value === 'Sim' ? 'yes' : 'no';
+            
+            let detailsHtml = '';
+            if (answerObj.details && answerObj.details.trim() !== '') {
+                detailsHtml = `<span class="sum-question-details">Nota: "${answerObj.details}"</span>`;
+            }
+
+            row.innerHTML = `
+                <div class="sum-question-info">
+                    <span class="sum-question-title">${question.title}</span>
+                    ${detailsHtml}
+                </div>
+                <span class="sum-answer-badge ${badgeClass}">${answerObj.value}</span>
+            `;
+
+            sumChecklistList.appendChild(row);
+        });
+    }
+
+    async function processFinalSubmission() {
+        // Desabilita o botão e mostra indicador de loading
+        btnNext.disabled = true;
+        btnNext.innerHTML = `
+            Salvando...
+            <svg class="btn-icon spinner" style="animation: spin 1s linear infinite;" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="2" x2="12" y2="6"/>
+                <line x1="12" y1="18" x2="12" y2="22"/>
+                <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/>
+                <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/>
+                <line x1="2" y1="12" x2="6" y2="12"/>
+                <line x1="18" y1="12" x2="22" y2="12"/>
+                <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/>
+                <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/>
+            </svg>
+        `;
+
+        // Verifica se há alguma resposta "Não" (que indica falha no veículo)
+        const hasFailures = Object.values(state.answers).some(ans => ans.value === 'Não');
+        const checklistStatus = hasFailures ? 'Atenção / Manutenção' : 'Aprovado para Uso';
+        
+        // Gera um ID de registro randômico
+        const randomNum = Math.floor(100000 + Math.random() * 900000);
+        const checklistIdGenerated = `CK-${randomNum}`;
+
+        try {
+            // Salva os dados no banco de dados do Firebase Firestore
+            await addDoc(collection(db, "checklists"), {
+                checklistId: checklistIdGenerated,
+                matricula: state.matricula,
+                nome: state.nome,
+                turno: state.turno,
+                frota: state.frota,
+                status: checklistStatus,
+                answers: state.answers,
+                timestamp: serverTimestamp()
+            });
+
+            // Oculta formulário principal e barra de navegação
+            form.style.display = 'none';
+            navControls.style.display = 'none';
+            
+            // Define o status do veículo no recibo final
+            if (hasFailures) {
+                receiptStatus.textContent = 'Atenção / Manutenção';
+                receiptStatus.className = 'status-badge atencao';
+            } else {
+                receiptStatus.textContent = 'Aprovado para Uso';
+                receiptStatus.className = 'status-badge aprovado';
+            }
+
+            receiptId.textContent = `#CK-${randomNum}`;
+
+            // Obtém data e hora corrente do sistema
+            const options = { 
+                day: '2-digit', 
+                month: '2-digit', 
+                year: 'numeric', 
+                hour: '2-digit', 
+                minute: '2-digit',
+                second: '2-digit'
+            };
+            const dateStr = new Date().toLocaleDateString('pt-BR', options);
+            receiptDate.textContent = dateStr;
+
+            // Preenche Frota no recibo
+            receiptVehicle.textContent = state.frota;
+
+            // Exibe a tela de sucesso
+            successStep.style.display = 'block';
+            updateProgressBar();
+
+        } catch (error) {
+            console.error("Erro ao salvar no Firestore: ", error);
+            alert("Erro ao enviar dados para o banco de dados. Por favor, verifique sua conexão de rede e tente novamente.");
+            
+            // Restaura o estado do botão para permitir nova tentativa
+            btnNext.disabled = false;
+            btnNext.innerHTML = `
+                Finalizar Checklist
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"/>
+                </svg>
+            `;
+        }
+    }
+
+    // ==========================================================================
+    // EVENTOS DE ESCUTA DOS BOTÕES DE NAVEGAÇÃO
+    // ==========================================================================
+    btnNext.addEventListener('click', async () => {
+        if (validateCurrentStep()) {
+            if (currentStep < totalSteps) {
+                goToStep(currentStep + 1);
+            } else if (currentStep === totalSteps) {
+                // Último passo (Resumo) finalizado com sucesso
+                await processFinalSubmission();
+            }
+        }
+    });
+
+    btnBack.addEventListener('click', () => {
+        if (currentStep > 1) {
+            goToStep(currentStep - 1);
+        }
+    });
+
+    // ==========================================================================
+    // REINICIALIZAR FORMULÁRIO (NOVO CHECKLIST)
+    // ==========================================================================
+    btnRestart.addEventListener('click', () => {
+        // Limpa estado
+        state.matricula = '';
+        state.nome = '';
+        state.turno = '';
+        state.frota = '';
+        state.answers = {};
+        state.declarationConfirmed = false;
+
+        // Reseta Inputs de Identificação no HTML
+        document.getElementById('matricula').value = '';
+        document.getElementById('nome').value = '';
+        document.getElementById('turno').selectedIndex = 0;
+        document.getElementById('frota').selectedIndex = 0;
+        document.getElementById('confirm-declaration').checked = false;
+
+        // Oculta tela de sucesso e exibe formulário principal
+        successStep.style.display = 'none';
+        summaryStep.style.display = 'none';
+        
+        form.style.display = 'block';
+        navControls.style.display = 'flex';
+
+        // Reconstrói e reinicia do passo 1
+        initializeChecklist();
+    });
+
+    // ==========================================================================
+    // EXPORTAR RELATÓRIO / IMPRESSÃO FORMATADA (PDF)
+    // ==========================================================================
+    btnDownloadReport.addEventListener('click', () => {
+        // Cria uma tela de impressão customizada temporária, garantindo um design corporativo premium
+        const printWindow = window.open('', '_blank');
+        
+        // Verifica se há alguma falha
+        const hasFailures = Object.values(state.answers).some(ans => ans.value === 'Não');
+        const statusLabel = hasFailures ? 'REQUER MANUTENÇÃO' : 'APROVADO PARA USO';
+        const statusColor = hasFailures ? '#ff1744' : '#00e676';
+        
+        // Constrói linhas das perguntas
+        let questionsRowsHtml = '';
+        checklistQuestions.forEach((q, idx) => {
+            const ans = state.answers[q.id] || { value: 'Não respondido', details: '' };
+            const detailsText = ans.details ? `<div style="font-size: 11px; color: #555; margin-top: 3px; font-style: italic;">Observações: "${ans.details}"</div>` : '';
+            
+            questionsRowsHtml += `
+                <tr style="border-bottom: 1px solid #ddd;">
+                    <td style="padding: 10px; font-size: 12px; font-weight: bold; color: #333;">${String(idx+1).padStart(2, '0')}</td>
+                    <td style="padding: 10px; font-size: 12px;">
+                        <div><strong>${q.category}</strong>: ${q.title}</div>
+                        ${detailsText}
+                    </td>
+                    <td style="padding: 10px; font-size: 12px; font-weight: bold; text-align: center; color: ${ans.value === 'Sim' ? '#2e7d32' : '#c62828'};">
+                        ${ans.value}
+                    </td>
+                </tr>
+            `;
+        });
+
+        // HTML Completo do relatório a ser impresso
+        const reportHtml = `
+            <!DOCTYPE html>
+            <html lang="pt-BR">
+            <head>
+                <meta charset="UTF-8">
+                <title>Relatório de Inspeção - ${state.frota}</title>
+                <style>
+                    body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #222; margin: 30px; line-height: 1.4; }
+                    .header { display: flex; justify-content: space-between; border-bottom: 3px solid #111; padding-bottom: 15px; margin-bottom: 25px; }
+                    .header h1 { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: 1px; }
+                    .header .logo { font-size: 18px; color: #0288d1; font-weight: bold; }
+                    .metadata-table { width: 100%; border-collapse: collapse; margin-bottom: 25px; }
+                    .metadata-table td { padding: 8px; border: 1px solid #eee; font-size: 13px; }
+                    .metadata-table td.label { font-weight: bold; background-color: #f7f9fa; width: 25%; }
+                    .status-box { text-align: center; padding: 15px; border-radius: 8px; border: 2px solid ${statusColor}; background-color: ${statusColor}10; margin-bottom: 25px; }
+                    .status-box h2 { margin: 0; font-size: 16px; color: ${statusColor}; text-transform: uppercase; letter-spacing: 2px; }
+                    .table-checklist { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+                    .table-checklist th { background-color: #111; color: white; padding: 10px; font-size: 12px; text-transform: uppercase; text-align: left; }
+                    .table-checklist td { border-bottom: 1px solid #eee; }
+                    .footer-signature { margin-top: 50px; display: flex; justify-content: space-between; gap: 40px; }
+                    .sig-line { border-top: 1px solid #666; width: 45%; text-align: center; padding-top: 8px; font-size: 11px; color: #555; margin-top: 40px; }
+                    @media print {
+                        body { margin: 0; }
+                        button { display: none; }
+                    }
+                </style>
+            </head>
+            <body>
+                <div style="text-align: right; margin-bottom: 15px;">
+                    <button onclick="window.print();" style="padding: 8px 16px; background-color: #111; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">Imprimir Relatório</button>
+                </div>
+                
+                <div class="header">
+                    <div>
+                        <div class="logo">CHECKLIST CENTRAL</div>
+                        <h1>RELATÓRIO DE INSPEÇÃO DE EQUIPAMENTO</h1>
+                    </div>
+                    <div style="text-align: right; font-size: 12px; color: #666;">
+                        <strong>ID:</strong> ${receiptId.textContent}<br>
+                        <strong>Data:</strong> ${receiptDate.textContent}
+                    </div>
+                </div>
+
+                <div class="status-box">
+                    <h2>STATUS DO VEÍCULO: ${statusLabel}</h2>
+                </div>
+
+                <table class="metadata-table">
+                    <tr>
+                        <td class="label">Operador:</td>
+                        <td>${state.nome}</td>
+                        <td class="label">Matrícula:</td>
+                        <td>${state.matricula}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Equipamento/Frota:</td>
+                        <td>${state.frota}</td>
+                        <td class="label">Turno:</td>
+                        <td>${state.turno}</td>
+                    </tr>
+                </table>
+
+                <h3 style="font-size: 14px; text-transform: uppercase; border-bottom: 1px solid #111; padding-bottom: 5px; margin-bottom: 15px;">Itens Verificados</h3>
+                
+                <table class="table-checklist">
+                    <thead>
+                        <tr>
+                            <th style="width: 50px;">Item</th>
+                            <th>Descrição da Inspeção</th>
+                            <th style="width: 100px; text-align: center;">Resultado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${questionsRowsHtml}
+                    </tbody>
+                </table>
+
+                <div style="font-size: 11px; color: #555; background: #f9f9f9; padding: 10px; border-radius: 4px; border: 1px solid #e0e0e0;">
+                    <strong>Declaração do Operador:</strong> "Declaro que realizei a inspeção visual e física deste veículo e as informações acima são verdadeiras." - <em>Confirmado eletronicamente via sistema Checklist Central.</em>
+                </div>
+
+                <div class="footer-signature">
+                    <div class="sig-line">
+                        ${state.nome}<br>
+                        Assinatura do Operador
+                    </div>
+                    <div class="sig-line">
+                        Assinatura da Supervisão / Manutenção
+                    </div>
+                </div>
+
+                <script>
+                    // Abre caixa de diálogo de impressão automaticamente após carregar
+                    window.onload = function() {
+                        setTimeout(function() {
+                            window.print();
+                        }, 300);
+                    }
+                </script>
+            </body>
+            </html>
+        `;
+
+        printWindow.document.write(reportHtml);
+        printWindow.document.close();
+    });
+
+    // Inicializa o checklist
+    initializeChecklist();
+});
