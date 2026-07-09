@@ -144,11 +144,15 @@ document.addEventListener('DOMContentLoaded', () => {
             querySnapshot.forEach((doc) => {
                 const data = doc.data();
                 if (data.name) {
-                    fleets.push(data.name);
+                    fleets.push({
+                        name: data.name,
+                        order: data.order ?? 0
+                    });
                 }
             });
 
-            fleets.sort();
+            // Ordena pela propriedade customizada de ordenação
+            fleets.sort((a, b) => a.order - b.order);
             selectFrota.innerHTML = '';
             
             if (fleets.length === 0) {
@@ -159,8 +163,8 @@ document.addEventListener('DOMContentLoaded', () => {
             selectFrota.innerHTML = '<option value="" disabled selected hidden>Selecione o veículo</option>';
             fleets.forEach(fleet => {
                 const opt = document.createElement('option');
-                opt.value = fleet;
-                opt.textContent = fleet;
+                opt.value = fleet.name;
+                opt.textContent = fleet.name;
                 selectFrota.appendChild(opt);
             });
         } catch (error) {
@@ -601,8 +605,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 timestamp: serverTimestamp()
             });
 
-            // Oculta formulário principal e barra de navegação
-            form.style.display = 'none';
+            // Oculta todas as etapas e exibe apenas a de sucesso
+            const allSteps = document.querySelectorAll('.step-card');
+            allSteps.forEach(card => {
+                card.classList.remove('active');
+                card.style.display = 'none';
+            });
+
             navControls.style.display = 'none';
             
             // Define o status do veículo no recibo final
@@ -632,6 +641,7 @@ document.addEventListener('DOMContentLoaded', () => {
             receiptVehicle.textContent = state.frota;
 
             // Exibe a tela de sucesso
+            successStep.classList.add('active');
             successStep.style.display = 'block';
             updateProgressBar();
 

@@ -62,9 +62,46 @@ const modalNextNotesSection = document.getElementById('modal-next-notes-section'
 const modalNextNotes = document.getElementById('modal-next-notes');
 const btnCloseModal = document.getElementById('btn-close-modal');
 
+// Elementos do DOM: Login
+const adminLoginScreen = document.getElementById('admin-login-screen');
+const adminLoginForm = document.getElementById('admin-login-form');
+const loginUser = document.getElementById('login-user');
+const loginPass = document.getElementById('login-pass');
+const loginError = document.getElementById('login-error');
+const adminWrapper = document.getElementById('admin-wrapper');
+
 document.addEventListener('DOMContentLoaded', async () => {
-    // 1. Carrega dados iniciais do Firestore
-    await loadAllData();
+    // 0. Controle de Login administrativo
+    const checkLogin = () => {
+        if (sessionStorage.getItem("adminLoggedIn") === "true") {
+            adminLoginScreen.style.display = 'none';
+            adminWrapper.style.display = 'block';
+            return true;
+        }
+        return false;
+    };
+
+    if (checkLogin()) {
+        await loadAllData();
+    }
+
+    adminLoginForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const user = loginUser.value.trim();
+        const pass = loginPass.value.trim();
+
+        if (user === 'admin' && pass === 'admin') {
+            sessionStorage.setItem("adminLoggedIn", "true");
+            loginError.style.display = 'none';
+            adminLoginScreen.style.display = 'none';
+            adminWrapper.style.display = 'block';
+            await loadAllData();
+        } else {
+            loginError.style.display = 'block';
+            loginPass.value = '';
+            loginPass.focus();
+        }
+    });
 
     // 2. Eventos para filtros
     filterFrota.addEventListener('change', renderChecklists);
@@ -88,8 +125,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         btnAddFleet.textContent = "Salvando...";
 
         try {
+            // Calcula o próximo valor de ordem (final da fila)
+            const nextOrder = localFleets.length > 0 ? Math.max(...localFleets.map(f => f.order ?? 0)) + 1 : 0;
+
             await addDoc(collection(db, "fleets"), {
                 name: name,
+                order: nextOrder,
                 timestamp: serverTimestamp()
             });
 
@@ -97,6 +138,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             await loadFleetsData();
             renderFleets();
             populateFleetFilters();
+            updateStats();
         } catch (error) {
             console.error("Erro ao cadastrar frota:", error);
             alert("Erro ao salvar no banco de dados.");
@@ -145,8 +187,8 @@ async function loadFleetsData() {
             ...docSnap.data()
         });
     });
-    // Ordena alfabeticamente pelo nome do veículo
-    localFleets.sort((a, b) => a.name.localeCompare(b.name));
+    // Ordena pela propriedade customizada de ordenação
+    localFleets.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 }
 
 async function loadChecklistsData() {
@@ -187,12 +229,23 @@ function renderFleets() {
         return;
     }
 
-    localFleets.forEach((fleet) => {
+    localFleets.forEach((fleet, index) => {
         const item = document.createElement('div');
         item.className = 'fleet-item';
+        
+        // Desabilita botões nas extremidades
+        const disableUp = index === 0 ? 'disabled style="opacity: 0.25; cursor: not-allowed;"' : '';
+        const disableDown = index === localFleets.length - 1 ? 'disabled style="opacity: 0.25; cursor: not-allowed;"' : '';
+
         item.innerHTML = `
             <span class="fleet-name">${fleet.name}</span>
             <div class="fleet-actions">
+                <button type="button" class="btn-icon-only btn-move-up" data-id="${fleet.id}" title="Mover para Cima" ${disableUp}>
+                    ▲
+                </button>
+                <button type="button" class="btn-icon-only btn-move-down" data-id="${fleet.id}" title="Mover para Baixo" ${disableDown}>
+                    ▼
+                </button>
                 <button type="button" class="btn-icon-only btn-edit" data-id="${fleet.id}" data-name="${fleet.name}" title="Editar Nome">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
@@ -211,6 +264,12 @@ function renderFleets() {
         `;
 
         // Eventos dos botões de ação
+        if (index > 0) {
+            item.querySelector('.btn-move-up').addEventListener('click', (e) => handleMoveFleet(e.currentTarget, -1));
+        }
+        if (index < localFleets.length - 1) {
+            item.querySelector('.btn-move-down').addEventListener('click', (e) => handleMoveFleet(e.currentTarget, 1));
+        }
         item.querySelector('.btn-edit').addEventListener('click', (e) => handleEditFleet(e.currentTarget));
         item.querySelector('.btn-delete').addEventListener('click', (e) => handleDeleteFleet(e.currentTarget));
 
@@ -363,6 +422,47 @@ async function handleDeleteFleet(target) {
     } catch (error) {
         console.error("Erro ao deletar veículo:", error);
         alert("Erro ao excluir o veículo da frota.");
+    }
+}
+
+async function handleMoveFleet(target, direction) {
+    const id = target.getAttribute('data-id');
+    const idx = localFleets.findIndex(f => f.id === id);
+    if (idx === -1) return;
+
+    const targetIdx = idx + direction;
+    if (targetIdx < 0 || targetIdx >= localFleets.length) return;
+
+    const currentFleet = localFleets[idx];
+    const targetFleet = localFleets[targetIdx];
+
+    // Troca os valores de ordem
+    const currentOrder = currentFleet.order ?? 0;
+    const targetOrder = targetFleet.order ?? 0;
+
+    let newCurrentOrder = targetOrder;
+    let newTargetOrder = currentOrder;
+
+    // Se tiverem a mesma ordem, recalcula baseando-se no índice
+    if (currentOrder === targetOrder) {
+        newCurrentOrder = targetOrder + (direction < 0 ? -1 : 1);
+    }
+
+    try {
+        await updateDoc(doc(db, "fleets", currentFleet.id), {
+            order: newCurrentOrder
+        });
+        await updateDoc(doc(db, "fleets", targetFleet.id), {
+            order: newTargetOrder
+        });
+
+        // Recarrega todos os dados de frotas e renderiza novamente na nova ordem
+        await loadFleetsData();
+        renderFleets();
+        populateFleetFilters();
+    } catch (error) {
+        console.error("Erro ao reordenar frota:", error);
+        alert("Erro ao reordenar veículo da frota no banco de dados.");
     }
 }
 

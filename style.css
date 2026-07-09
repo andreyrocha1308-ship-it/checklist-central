@@ -48,6 +48,11 @@
     box-sizing: border-box;
 }
 
+html, body {
+    width: 100%;
+    overflow-x: hidden;
+}
+
 body {
     background-color: var(--bg-dark);
     color: var(--text-primary);
@@ -55,10 +60,9 @@ body {
     min-height: 100vh;
     display: flex;
     justify-content: center;
-    align-items: center;
-    overflow-x: hidden;
+    align-items: flex-start;
     position: relative;
-    padding: 20px 16px;
+    padding: 40px 16px 20px 16px;
 }
 
 /* Background Glow Effects */
@@ -1061,7 +1065,7 @@ body {
 @media (max-width: 480px) {
     body {
         padding: 20px 10px;
-        align-items: center;
+        align-items: flex-start;
     }
     
     .app-container {
@@ -1134,6 +1138,45 @@ body {
         padding: 12px 18px;
         font-size: 0.9rem;
     }
+}
+
+.admin-access-wrapper {
+    display: flex;
+    justify-content: center;
+    margin-top: 25px;
+}
+
+.admin-access-link {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-decoration: none;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 600;
+    transition: all var(--transition-fast);
+    padding: 6px 12px;
+    border-radius: 6px;
+    background-color: rgba(255, 255, 255, 0.01);
+    border: 1px solid transparent;
+}
+
+.admin-access-link svg {
+    width: 14px;
+    height: 14px;
+    transition: transform 0.5s ease-in-out;
+}
+
+.admin-access-link:hover {
+    color: var(--accent-primary);
+    background-color: rgba(0, 242, 254, 0.04);
+    border-color: rgba(0, 242, 254, 0.1);
+}
+
+.admin-access-link:hover svg {
+    transform: rotate(180deg);
 }
 
 /* Spinner Animation for Saving states */
@@ -1588,5 +1631,42 @@ body {
     
     .filters-card {
         grid-template-columns: 1fr;
+    }
+}
+
+/* Admin Login Layout */
+.admin-login-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: var(--bg-dark);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 2000;
+    padding: 20px 16px;
+    overflow: hidden;
+}
+
+.login-card {
+    background: var(--bg-card);
+    backdrop-filter: blur(25px);
+    -webkit-backdrop-filter: blur(25px);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    padding: 35px 30px;
+    width: 100%;
+    max-width: 400px;
+    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255,255,255,0.05);
+    z-index: 10;
+    animation: scaleUp 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    position: relative;
+}
+
+@media (max-width: 480px) {
+    .login-card {
+        padding: 25px 20px;
     }
 }

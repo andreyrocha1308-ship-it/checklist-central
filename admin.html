@@ -15,11 +15,58 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body class="admin-body">
+    <!-- LOGIN SCREEN (PRE-DEFINED) -->
+    <div id="admin-login-screen" class="admin-login-screen">
+        <div class="bg-glow bg-glow-1"></div>
+        <div class="bg-glow bg-glow-2"></div>
+        
+        <div class="login-card">
+            <div class="logo-area" style="justify-content: center; margin-bottom: 20px;">
+                <svg class="logo-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/>
+                    <path d="M12 16V12"/>
+                    <path d="M12 8h.01"/>
+                </svg>
+                <h1>PAINEL<span>ADMIN</span></h1>
+            </div>
+            
+            <p style="text-align: center; color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 25px;">
+                Insira as credenciais administrativas para acessar.
+            </p>
+            
+            <form id="admin-login-form" onsubmit="event.preventDefault();">
+                <div class="input-group">
+                    <label for="login-user">Usuário</label>
+                    <div class="input-wrapper">
+                        <svg class="input-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                        <input type="text" id="login-user" placeholder="Nome de usuário" required autocomplete="username">
+                    </div>
+                </div>
+                
+                <div class="input-group" style="margin-top: 15px;">
+                    <label for="login-pass">Senha</label>
+                    <div class="input-wrapper">
+                        <svg class="input-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                        <input type="password" id="login-pass" placeholder="Senha secreta" required autocomplete="current-password">
+                    </div>
+                </div>
+                
+                <span class="validation-message" id="login-error" style="display: none; text-align: center; margin-top: 15px;">
+                    Usuário ou senha incorretos!
+                </span>
+                
+                <button type="submit" class="btn-action btn-primary" style="width: 100%; margin-top: 25px;">
+                    Acessar Painel
+                </button>
+            </form>
+        </div>
+    </div>
+
     <!-- Efeitos de Brilho de Fundo Neon -->
     <div class="bg-glow bg-glow-1"></div>
     <div class="bg-glow bg-glow-2"></div>
 
-    <div class="admin-wrapper">
+    <div class="admin-wrapper" id="admin-wrapper" style="display: none;">
         <!-- Cabeçalho Administrativo -->
         <header class="app-header admin-header">
             <div class="logo-area">
