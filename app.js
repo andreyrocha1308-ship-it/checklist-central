@@ -5,7 +5,7 @@
 
 // Importações do Firebase SDK
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, serverTimestamp, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 // Configuração do Firebase fornecida pelo usuário
 const firebaseConfig = {
@@ -72,19 +72,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const state = {
         matricula: '',
         nome: '',
+        data: '',
         turno: '',
         frota: '',
         answers: {}, // Estrutura: { questionId: { value: 'Sim'|'Não', details: 'Texto opcional' } }
-        declarationConfirmed: false
+        declarationConfirmed: false,
+        nextShiftNotes: ''
     };
 
     let currentStep = 1;
     
-    // Passos fixos iniciais: 4 (Matrícula, Nome, Turno, Frota)
-    const fixedStepsCount = 4;
+    // Passos fixos iniciais: 5 (Matrícula, Nome, Data, Turno, Frota)
+    const fixedStepsCount = 5;
     // Checklist dinâmico: checklistQuestions.length
+    // Passo de Notas do próximo turno: 1
     // Passo de resumo final: 1
-    const totalSteps = fixedStepsCount + checklistQuestions.length + 1;
+    const totalSteps = fixedStepsCount + checklistQuestions.length + 2;
 
     // ==========================================================================
     // REFERÊNCIAS DOS ELEMENTOS DO DOM
@@ -99,10 +102,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const progressPercentage = document.getElementById('progress-percentage');
     const progressFill = document.getElementById('progress-fill');
 
+    const nextShiftStep = document.getElementById('next-shift-step');
+    const nextShiftStepNumber = document.getElementById('next-shift-step-number');
+    const nextShiftObs = document.getElementById('next-shift-obs');
     const summaryStep = document.getElementById('summary-step');
     const successStep = document.getElementById('success-step');
 
+    // Alerta do Turno Anterior
+    const prevShiftNotesContainer = document.getElementById('prev-shift-notes-container');
+    const prevShiftNotesText = document.getElementById('prev-shift-notes-text');
+    const prevShiftNotesMeta = document.getElementById('prev-shift-notes-meta');
+
     // Elementos de Resumo
+    const sumData = document.getElementById('sum-data');
     const sumMatricula = document.getElementById('sum-matricula');
     const sumNome = document.getElementById('sum-nome');
     const sumTurno = document.getElementById('sum-turno');
@@ -116,13 +128,62 @@ document.addEventListener('DOMContentLoaded', () => {
     const receiptDate = document.getElementById('receipt-date');
     const receiptVehicle = document.getElementById('receipt-vehicle');
     const btnDownloadReport = document.getElementById('btn-download-report');
+    const btnShareWhatsapp = document.getElementById('btn-share-whatsapp');
     const btnRestart = document.getElementById('btn-restart');
+
+    // ==========================================================================
+    // CARREGAR FROTA DINAMICAMENTE
+    // ==========================================================================
+    async function loadFleets() {
+        const selectFrota = document.getElementById('frota');
+        if (!selectFrota) return;
+
+        try {
+            const querySnapshot = await getDocs(collection(db, "fleets"));
+            const fleets = [];
+            querySnapshot.forEach((doc) => {
+                const data = doc.data();
+                if (data.name) {
+                    fleets.push(data.name);
+                }
+            });
+
+            fleets.sort();
+            selectFrota.innerHTML = '';
+            
+            if (fleets.length === 0) {
+                selectFrota.innerHTML = '<option value="" disabled selected hidden>Nenhum veículo cadastrado (Acesse /admin.html)</option>';
+                return;
+            }
+
+            selectFrota.innerHTML = '<option value="" disabled selected hidden>Selecione o veículo</option>';
+            fleets.forEach(fleet => {
+                const opt = document.createElement('option');
+                opt.value = fleet;
+                opt.textContent = fleet;
+                selectFrota.appendChild(opt);
+            });
+        } catch (error) {
+            console.error("Erro ao carregar frotas do Firestore:", error);
+            selectFrota.innerHTML = '<option value="" disabled selected hidden>Erro ao carregar frotas</option>';
+        }
+    }
 
     // ==========================================================================
     // INICIALIZAÇÃO E GERAÇÃO DINÂMICA DO CHECKLIST
     // ==========================================================================
     function initializeChecklist() {
         dynamicContainer.innerHTML = ''; // Limpa conteúdo anterior
+        
+        // Inicializa o campo de data com a data de hoje
+        const inputData = document.getElementById('data-inspecao');
+        if (inputData) {
+            inputData.value = new Date().toISOString().split('T')[0];
+            state.data = inputData.value;
+        }
+
+        // Carrega a frota dinamicamente do Firestore
+        loadFleets();
         
         checklistQuestions.forEach((question, index) => {
             const stepNum = fixedStepsCount + 1 + index;
@@ -237,7 +298,18 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
 
+        // Configura o número do passo de passagem de turno de forma dinâmica
+        if (nextShiftStep) {
+            nextShiftStep.setAttribute('data-step', String(totalSteps - 1));
+        }
+        if (nextShiftStepNumber) {
+            nextShiftStepNumber.textContent = String(totalSteps - 1).padStart(2, '0');
+        }
+
         // Configura o número do passo do resumo de forma dinâmica
+        if (summaryStep) {
+            summaryStep.setAttribute('data-step', String(totalSteps));
+        }
         const summaryStepNumber = document.getElementById('summary-step-number');
         if (summaryStepNumber) {
             summaryStepNumber.textContent = String(totalSteps).padStart(2, '0');
@@ -253,17 +325,22 @@ document.addEventListener('DOMContentLoaded', () => {
     function goToStep(stepNumber) {
         // Oculta todas as telas/etapas
         const allSteps = document.querySelectorAll('.step-card');
-        allSteps.forEach(card => card.classList.remove('active'));
+        allSteps.forEach(card => {
+            card.classList.remove('active');
+            card.style.display = 'none';
+        });
 
         // Exibe a etapa pretendida
         if (stepNumber <= totalSteps) {
             const activeCard = document.querySelector(`.step-card[data-step="${stepNumber}"]`);
             if (activeCard) {
                 activeCard.classList.add('active');
-            } else if (stepNumber === totalSteps) {
-                summaryStep.classList.add('active');
-                summaryStep.style.display = 'block';
-                renderSummaryData();
+                activeCard.style.display = 'block';
+                
+                // Se for a etapa final (resumo), renderiza os dados coletados
+                if (stepNumber === totalSteps) {
+                    renderSummaryData();
+                }
             }
         }
 
@@ -319,9 +396,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // Altera texto descritivo
         if (currentStep <= fixedStepsCount) {
             progressStepText.textContent = `Identificação - Passo ${currentStep} de ${totalSteps}`;
-        } else if (currentStep < totalSteps) {
-            const questionIdx = currentStep - fixedStepsCount;
+        } else if (currentStep <= fixedStepsCount + checklistQuestions.length) {
             progressStepText.textContent = `Itens do Veículo - Passo ${currentStep} de ${totalSteps}`;
+        } else if (currentStep === totalSteps - 1) {
+            progressStepText.textContent = `Notas de Turno - Passo ${currentStep} de ${totalSteps}`;
         } else {
             progressStepText.textContent = `Revisão Geral - Passo ${currentStep} de ${totalSteps}`;
         }
@@ -368,6 +446,19 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         else if (currentStep === 3) {
+            const inputData = document.getElementById('data-inspecao');
+            const val = inputData.value;
+            const error = document.getElementById('error-data-inspecao');
+
+            if (!val) {
+                error.style.display = 'flex';
+                isValid = false;
+            } else {
+                error.style.display = 'none';
+                state.data = val;
+            }
+        }
+        else if (currentStep === 4) {
             const selectTurno = document.getElementById('turno');
             const val = selectTurno.value;
             const error = document.getElementById('error-turno');
@@ -380,7 +471,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 state.turno = val;
             }
         }
-        else if (currentStep === 4) {
+        else if (currentStep === 5) {
             const selectFrota = document.getElementById('frota');
             const val = selectFrota.value;
             const error = document.getElementById('error-frota');
@@ -393,7 +484,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 state.frota = val;
             }
         }
-        else if (currentStep > fixedStepsCount && currentStep < totalSteps) {
+        else if (currentStep > fixedStepsCount && currentStep <= fixedStepsCount + checklistQuestions.length) {
             // Valida as etapas dinâmicas de perguntas
             const questionId = activeCard.getAttribute('data-question-id');
             const answer = state.answers[questionId];
@@ -405,6 +496,10 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 error.style.display = 'none';
             }
+        }
+        else if (currentStep === totalSteps - 1) {
+            // Passo de passagem de turno (opcional, sempre válido)
+            state.nextShiftNotes = nextShiftObs.value.trim();
         }
         else if (currentStep === totalSteps) {
             // Valida o aceite da declaração final no resumo
@@ -428,6 +523,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==========================================================================
     function renderSummaryData() {
         // Preenche campos de identificação
+        if (sumData) {
+            const dateParts = state.data.split('-');
+            const formattedDate = dateParts.length === 3 ? `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}` : state.data;
+            sumData.textContent = formattedDate;
+        }
         sumMatricula.textContent = state.matricula;
         sumNome.textContent = state.nome;
         sumTurno.textContent = state.turno;
@@ -492,10 +592,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 checklistId: checklistIdGenerated,
                 matricula: state.matricula,
                 nome: state.nome,
+                data: state.data,
                 turno: state.turno,
                 frota: state.frota,
                 status: checklistStatus,
                 answers: state.answers,
+                nextShiftNotes: state.nextShiftNotes,
                 timestamp: serverTimestamp()
             });
 
@@ -575,20 +677,34 @@ document.addEventListener('DOMContentLoaded', () => {
         // Limpa estado
         state.matricula = '';
         state.nome = '';
+        state.data = '';
         state.turno = '';
         state.frota = '';
         state.answers = {};
         state.declarationConfirmed = false;
+        state.nextShiftNotes = '';
 
-        // Reseta Inputs de Identificação no HTML
+        // Reseta Inputs no HTML
         document.getElementById('matricula').value = '';
         document.getElementById('nome').value = '';
+        const inputData = document.getElementById('data-inspecao');
+        if (inputData) {
+            inputData.value = new Date().toISOString().split('T')[0];
+            state.data = inputData.value;
+        }
         document.getElementById('turno').selectedIndex = 0;
         document.getElementById('frota').selectedIndex = 0;
         document.getElementById('confirm-declaration').checked = false;
+        nextShiftObs.value = '';
+
+        // Oculta alertas de turno anterior
+        prevShiftNotesContainer.style.display = 'none';
+        prevShiftNotesText.textContent = '-';
+        prevShiftNotesMeta.textContent = '-';
 
         // Oculta tela de sucesso e exibe formulário principal
         successStep.style.display = 'none';
+        nextShiftStep.style.display = 'none';
         summaryStep.style.display = 'none';
         
         form.style.display = 'block';
@@ -737,6 +853,285 @@ document.addEventListener('DOMContentLoaded', () => {
         printWindow.document.write(reportHtml);
         printWindow.document.close();
     });
+
+    // Escuta a seleção de frota para buscar as notas do turno anterior
+    const selectFrota = document.getElementById('frota');
+    if (selectFrota) {
+        selectFrota.addEventListener('change', async (e) => {
+            const selectedVehicle = e.target.value;
+            if (!selectedVehicle) {
+                prevShiftNotesContainer.style.display = 'none';
+                return;
+            }
+
+            // Oculta e reseta o container enquanto busca
+            prevShiftNotesContainer.style.display = 'none';
+            prevShiftNotesText.textContent = '-';
+            prevShiftNotesMeta.textContent = '-';
+
+            try {
+                // Consulta no Firestore pelo último checklist da frota selecionada
+                // Para evitar a necessidade de criar índices compostos no console do Firebase,
+                // filtramos por frota e depois ordenamos localmente pelo timestamp em JS.
+                const q = query(
+                    collection(db, "checklists"), 
+                    where("frota", "==", selectedVehicle)
+                );
+                
+                const querySnapshot = await getDocs(q);
+                const documents = [];
+                
+                querySnapshot.forEach((doc) => {
+                    const data = doc.data();
+                    if (data.nextShiftNotes && data.nextShiftNotes.trim() !== '') {
+                        documents.push({
+                            notes: data.nextShiftNotes,
+                            nome: data.nome || 'Operador',
+                            matricula: data.matricula || '-',
+                            turno: data.turno || '-',
+                            timestamp: data.timestamp ? data.timestamp.toDate() : new Date(0)
+                        });
+                    }
+                });
+
+                if (documents.length > 0) {
+                    // Ordena pelo timestamp decrescente (mais recente primeiro)
+                    documents.sort((a, b) => b.timestamp - a.timestamp);
+                    
+                    const latestDoc = documents[0];
+                    
+                    // Preenche os dados no HTML e exibe
+                    prevShiftNotesText.textContent = `"${latestDoc.notes}"`;
+                    
+                    // Formata a data para exibição amigável
+                    const dateOptions = { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' };
+                    const formattedDate = latestDoc.timestamp.toLocaleDateString('pt-BR', dateOptions);
+                    
+                    prevShiftNotesMeta.textContent = `Operador: ${latestDoc.nome} (Mat. ${latestDoc.matricula}) | Turno: ${latestDoc.turno} (${formattedDate})`;
+                    prevShiftNotesContainer.style.display = 'flex';
+                }
+            } catch (error) {
+                console.error("Erro ao buscar notas do turno anterior:", error);
+            }
+        });
+    }
+
+    // Evento de clique para compartilhar no whatsapp
+    if (btnShareWhatsapp) {
+        btnShareWhatsapp.addEventListener('click', shareBulletinOnWhatsapp);
+    }
+
+    function populateBulletinTemplate() {
+        // Date
+        document.getElementById('bulletin-date').textContent = new Date().toLocaleDateString('pt-BR');
+        
+        // Fleet
+        document.getElementById('bulletin-frota').textContent = state.frota;
+        
+        // Model (Extract model from fleet name if possible, or fallback)
+        let modelo = "Inspeção Diária";
+        if (state.frota.includes("Caminhão Pipa")) modelo = "Mercedes-Benz / Ford";
+        else if (state.frota.includes("Escavadeira")) modelo = "Caterpillar / Komatsu";
+        else if (state.frota.includes("Empilhadeira")) modelo = "Toyota / Hyster";
+        else if (state.frota.includes("Pá Carregadeira")) modelo = "Volvo / CAT";
+        else if (state.frota.includes("Trator")) modelo = "John Deere / CAT";
+        else if (state.frota.includes("Caminhão Caçamba")) modelo = "Volvo FMX";
+        document.getElementById('bulletin-modelo').textContent = modelo;
+
+        // Reset all driver and matrícula fields
+        document.getElementById('bulletin-driver-a').textContent = '-';
+        document.getElementById('bulletin-driver-b').textContent = '-';
+        document.getElementById('bulletin-driver-c').textContent = '-';
+        document.getElementById('bulletin-mat-a').textContent = '-';
+        document.getElementById('bulletin-mat-b').textContent = '-';
+        document.getElementById('bulletin-mat-c').textContent = '-';
+
+        // Reset conditions and notes
+        document.getElementById('bulletin-cond-a').textContent = '( ) SIM  ( ) NÃO';
+        document.getElementById('bulletin-cond-b').textContent = '( ) SIM  ( ) NÃO';
+        document.getElementById('bulletin-cond-c').textContent = '( ) SIM  ( ) NÃO';
+        document.getElementById('bulletin-note-a').textContent = '-';
+        document.getElementById('bulletin-note-b').textContent = '-';
+        document.getElementById('bulletin-note-c').textContent = '-';
+
+        // Active Turn Fill
+        const isTurnoA = state.turno === 'Turno A';
+        const isTurnoB = state.turno === 'Turno B';
+        const isTurnoC = state.turno === 'Turno C';
+
+        if (isTurnoA) {
+            document.getElementById('bulletin-driver-a').textContent = state.nome;
+            document.getElementById('bulletin-mat-a').textContent = state.matricula;
+            document.getElementById('bulletin-note-a').textContent = state.nextShiftNotes || 'Veículo em bom estado, sem ocorrências.';
+        } else if (isTurnoB) {
+            document.getElementById('bulletin-driver-b').textContent = state.nome;
+            document.getElementById('bulletin-mat-b').textContent = state.matricula;
+            document.getElementById('bulletin-note-b').textContent = state.nextShiftNotes || 'Veículo em bom estado, sem ocorrências.';
+        } else if (isTurnoC) {
+            document.getElementById('bulletin-driver-c').textContent = state.nome;
+            document.getElementById('bulletin-mat-c').textContent = state.matricula;
+            document.getElementById('bulletin-note-c').textContent = state.nextShiftNotes || 'Veículo em bom estado, sem ocorrências.';
+        }
+
+        // Equipment in working conditions SIM/NÃO
+        const hasFailures = Object.values(state.answers).some(ans => ans.value === 'Não');
+        const condText = hasFailures ? '( ) SIM  ( X ) NÃO' : '( X ) SIM  ( ) NÃO';
+
+        if (isTurnoA) document.getElementById('bulletin-cond-a').textContent = condText;
+        else if (isTurnoB) document.getElementById('bulletin-cond-b').textContent = condText;
+        else if (isTurnoC) document.getElementById('bulletin-cond-c').textContent = condText;
+
+        // Operator Signature
+        document.getElementById('bulletin-sig-operator').textContent = state.nome;
+
+        // Inspection Rows Table
+        const rowsContainer = document.getElementById('bulletin-inspection-rows');
+        rowsContainer.innerHTML = '';
+
+        checklistQuestions.forEach(q => {
+            const answerObj = state.answers[q.id] || { value: 'Sim', details: '' };
+            const row = document.createElement('tr');
+            row.style.borderBottom = '1px solid #000';
+
+            const yesMark = answerObj.value === 'Sim' ? 'X' : '';
+            const noMark = answerObj.value === 'Não' ? 'X' : '';
+
+            row.innerHTML = `
+                <td style="border: 1px solid #000; padding: 5px; font-weight: bold; text-transform: uppercase;">${q.title}</td>
+                
+                <!-- Turno A columns -->
+                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold; font-size: 11px;">${isTurnoA ? yesMark : ''}</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold; font-size: 11px;">${isTurnoA ? noMark : ''}</td>
+                
+                <!-- Turno B columns -->
+                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold; font-size: 11px;">${isTurnoB ? yesMark : ''}</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold; font-size: 11px;">${isTurnoB ? noMark : ''}</td>
+                
+                <!-- Turno C columns -->
+                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold; font-size: 11px;">${isTurnoC ? yesMark : ''}</td>
+                <td style="border: 1px solid #000; padding: 5px; text-align: center; font-weight: bold; font-size: 11px;">${isTurnoC ? noMark : ''}</td>
+                
+                <!-- Observation column -->
+                <td style="border: 1px solid #000; padding: 5px; font-size: 9px; font-style: italic;">${answerObj.details || ''}</td>
+            `;
+
+            rowsContainer.appendChild(row);
+        });
+    }
+
+    async function shareBulletinOnWhatsapp() {
+        // Primeiro popula o template do boletim
+        populateBulletinTemplate();
+
+        const captureElement = document.getElementById('bulletin-capture-template');
+        captureElement.style.display = 'block'; // Torna temporariamente visível para o html2canvas renderizar
+
+        // Mostra loading no botão de compartilhar
+        const originalBtnContent = btnShareWhatsapp.innerHTML;
+        btnShareWhatsapp.disabled = true;
+        btnShareWhatsapp.innerHTML = `
+            Gerando Boletim...
+            <svg class="btn-icon spinner" style="animation: spin 1s linear infinite;" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="2" x2="12" y2="6"/>
+                <line x1="12" y1="18" x2="12" y2="22"/>
+                <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/>
+                <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/>
+                <line x1="2" y1="12" x2="6" y2="12"/>
+                <line x1="18" y1="12" x2="22" y2="12"/>
+                <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/>
+                <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/>
+            </svg>
+        `;
+
+        try {
+            // Renderiza com html2canvas
+            const canvas = await html2canvas(captureElement, {
+                useCORS: true,
+                scale: 2 // Aumenta a qualidade da imagem capturada
+            });
+            
+            captureElement.style.display = 'none'; // Oculta novamente
+
+            // Converte o canvas para Blob de imagem PNG
+            canvas.toBlob(async (blob) => {
+                if (!blob) {
+                    throw new Error("Erro ao converter canvas para blob.");
+                }
+
+                const file = new File([blob], `boletim_${state.frota.replace(/\s+/g, '_')}.png`, { type: 'image/png' });
+                
+                // Texto amigável para enviar junto
+                const hasFailures = Object.values(state.answers).some(ans => ans.value === 'Não');
+                const statusEmoji = hasFailures ? '⚠️ ATENÇÃO / MANUTENÇÃO' : '✅ APROVADO PARA USO';
+                
+                const shareText = `*Checklist Diário Obrigatório - Checklist Central*\n` +
+                                  `• *Veículo:* ${state.frota}\n` +
+                                  `• *Operador:* ${state.nome} (Mat. ${state.matricula})\n` +
+                                  `• *Turno:* ${state.turno}\n` +
+                                  `• *Status:* ${statusEmoji}\n` +
+                                  `• *Obs:* ${state.nextShiftNotes || 'Sem observações.'}`;
+
+                // Tenta usar a Web Share API (compartilhamento nativo no celular)
+                if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+                    try {
+                        await navigator.share({
+                            files: [file],
+                            title: 'Boletim de Inspeção Diária',
+                            text: shareText
+                        });
+                        console.log("Compartilhamento realizado com sucesso.");
+                    } catch (shareError) {
+                        console.log("Erro ou cancelamento no compartilhamento nativo:", shareError);
+                        // Fallback em caso de erro no Share (ex: cancelou)
+                        downloadAndOpenWhatsapp(blob, shareText);
+                    }
+                } else {
+                    // Fallback para computadores / navegadores que não suportam Web Share API
+                    downloadAndOpenWhatsapp(blob, shareText);
+                }
+
+                // Restaura o botão de compartilhar
+                btnShareWhatsapp.disabled = false;
+                btnShareWhatsapp.innerHTML = originalBtnContent;
+
+            }, 'image/png');
+
+        } catch (error) {
+            console.error("Erro na geração do boletim:", error);
+            captureElement.style.display = 'none';
+            alert("Erro ao gerar imagem do boletim. O relatório de texto será enviado.");
+            
+            // Fallback de texto puro
+            const shareText = `*Checklist Diário Obrigatório - Checklist Central*\n` +
+                              `• *Veículo:* ${state.frota}\n` +
+                              `• *Operador:* ${state.nome} (Mat. ${state.matricula})\n` +
+                              `• *Turno:* ${state.turno}\n` +
+                              `• *Obs:* ${state.nextShiftNotes || 'Sem observações.'}`;
+                              
+            window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`, '_blank');
+            
+            btnShareWhatsapp.disabled = false;
+            btnShareWhatsapp.innerHTML = originalBtnContent;
+        }
+    }
+
+    function downloadAndOpenWhatsapp(blob, shareText) {
+        // Faz o download da imagem automaticamente para o usuário
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `boletim_${state.frota.replace(/\s+/g, '_')}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        alert("O boletim de imagem foi baixado no seu dispositivo. Agora, o WhatsApp será aberto para você selecionar o contato e colar/anexar a imagem!");
+
+        // Abre o WhatsApp com a mensagem formatada em texto
+        const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
+        window.open(whatsappUrl, '_blank');
+    }
 
     // Inicializa o checklist
     initializeChecklist();

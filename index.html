@@ -13,6 +13,9 @@
     
     <!-- Link para o CSS externo -->
     <link rel="stylesheet" href="style.css">
+    
+    <!-- Biblioteca html2canvas para capturar a imagem do boletim -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
 <body>
     <!-- Efeitos de Brilho de Fundo Neon -->
@@ -84,10 +87,27 @@
                     </div>
                 </div>
 
-                <!-- ETAPA 3: Turno -->
+                <!-- ETAPA 3: Data da Inspeção -->
                 <div class="step-card" data-step="3">
                     <div class="step-header">
                         <div class="step-number">03</div>
+                        <h2>Data do Registro</h2>
+                        <p>Confirme a data para o registro do checklist.</p>
+                    </div>
+                    <div class="input-group">
+                        <label for="data-inspecao">Data</label>
+                        <div class="input-wrapper">
+                            <svg class="input-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                            <input type="date" id="data-inspecao" required>
+                        </div>
+                        <span class="validation-message" id="error-data-inspecao">Por favor, insira uma data válida.</span>
+                    </div>
+                </div>
+
+                <!-- ETAPA 4: Turno -->
+                <div class="step-card" data-step="4">
+                    <div class="step-header">
+                        <div class="step-number">04</div>
                         <h2>Turno de Trabalho</h2>
                         <p>Selecione o turno correspondente à sua jornada de hoje.</p>
                     </div>
@@ -106,10 +126,10 @@
                     </div>
                 </div>
 
-                <!-- ETAPA 4: Frota -->
-                <div class="step-card" data-step="4">
+                <!-- ETAPA 5: Frota -->
+                <div class="step-card" data-step="5">
                     <div class="step-header">
-                        <div class="step-number">04</div>
+                        <div class="step-number">05</div>
                         <h2>Seleção de Veículo / Máquina</h2>
                         <p>Escolha o veículo da frota que você operará neste turno.</p>
                     </div>
@@ -122,22 +142,41 @@
                                 <circle cx="16.5" cy="17.5" r="2.5"/>
                             </svg>
                             <select id="frota" required>
-                                <option value="" disabled selected hidden>Selecione o veículo</option>
-                                <option value="Caminhão Pipa - C-01">Caminhão Pipa - C-01</option>
-                                <option value="Escavadeira Hidráulica - E-05">Escavadeira Hidráulica - E-05</option>
-                                <option value="Empilhadeira Elétrica - EM-12">Empilhadeira Elétrica - EM-12</option>
-                                <option value="Pá Carregadeira - P-03">Pá Carregadeira - P-03</option>
-                                <option value="Trator de Esteira - T-02">Trator de Esteira - T-02</option>
-                                <option value="Caminhão Caçamba - CC-08">Caminhão Caçamba - CC-08</option>
+                                <option value="" disabled selected hidden>Carregando frotas...</option>
                             </select>
                         </div>
                         <span class="validation-message" id="error-frota">Por favor, selecione um veículo da frota.</span>
+                        
+                        <!-- Alerta de observação do turno anterior (Firestore query) -->
+                        <div class="next-shift-alert" id="prev-shift-notes-container" style="display: none;">
+                            <span class="alert-icon">⚠️</span>
+                            <div class="alert-content">
+                                <span class="alert-title">Aviso do Turno Anterior:</span>
+                                <p class="alert-text" id="prev-shift-notes-text">-</p>
+                                <span class="alert-meta" id="prev-shift-notes-meta">Operador: - | Turno: -</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
                 <!-- ETAPAS DO CHECKLIST DINÂMICO (Preenchidas por JavaScript) -->
                 <div id="dynamic-checklist-container">
                     <!-- O JS renderizará os passos de checklist aqui -->
+                </div>
+
+                <!-- ETAPA: Observações para o Próximo Turno -->
+                <div class="step-card" id="next-shift-step" style="display: none;">
+                    <div class="step-header">
+                        <div class="step-number" id="next-shift-step-number">05</div>
+                        <h2>Passagem de Turno</h2>
+                        <p>Deixe notas ou avisos importantes para os operadores que assumirão este veículo nos próximos turnos (opcional).</p>
+                    </div>
+                    <div class="input-group">
+                        <label for="next-shift-obs">Observações para o Próximo Turno</label>
+                        <div class="textarea-wrapper">
+                            <textarea id="next-shift-obs" placeholder="Ex: Veículo limpo e abastecido, mas o freio de mão precisa de força extra para travar..." autocomplete="off"></textarea>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- ETAPA DE RESUMO (Último passo antes de finalizar) -->
@@ -151,6 +190,10 @@
                     <div class="summary-section">
                         <h3>Identificação</h3>
                         <div class="summary-grid">
+                            <div class="summary-item">
+                                <span class="summary-label">Data</span>
+                                <span class="summary-value" id="sum-data">-</span>
+                            </div>
                             <div class="summary-item">
                                 <span class="summary-label">Matrícula</span>
                                 <span class="summary-value" id="sum-matricula">-</span>
@@ -223,6 +266,12 @@
                             <svg class="btn-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
                             Baixar Relatório (PDF)
                         </button>
+                        <button type="button" class="btn-action btn-whatsapp" id="btn-share-whatsapp">
+                            <svg class="btn-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+                            </svg>
+                            Enviar p/ WhatsApp
+                        </button>
                         <button type="button" class="btn-action btn-primary" id="btn-restart">
                             <svg class="btn-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8M21 3v5h-5M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16M3 21v-5h5"/></svg>
                             Novo Checklist
@@ -244,6 +293,122 @@
 
             </form>
         </main>
+    </div>
+
+    <!-- TEMPLATE DO BOLETIM PARA CAPTURA (Oculto da tela, exportado como imagem) -->
+    <div id="bulletin-capture-template" class="bulletin-capture-container" style="position: absolute; left: -9999px; top: 0; width: 800px; background-color: #ffffff; color: #000000; padding: 25px; font-family: Arial, sans-serif; box-sizing: border-box; border: 2px solid #000;">
+        <div class="bulletin-header" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 15px;">
+            <div class="bulletin-logo-left" style="font-size: 24px; font-weight: 900; letter-spacing: 2px;">X5X</div>
+            <div class="bulletin-title-container" style="text-align: center; flex-grow: 1;">
+                <div class="bulletin-main-title" style="font-size: 16px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px;">CHECK LIST OBRIGATÓRIO DIÁRIO</div>
+            </div>
+            <div class="bulletin-logo-right" style="font-size: 14px; font-weight: 700; font-style: italic; border: 1px solid #000; padding: 3px 8px; border-radius: 4px;">Mantenedor M</div>
+        </div>
+
+        <div class="bulletin-meta-row" style="display: flex; border: 1px solid #000; margin-bottom: 15px;">
+            <div class="bulletin-meta-col" style="width: 25%; padding: 8px; border-right: 1px solid #000;">
+                <div style="font-size: 9px; font-weight: bold; color: #555;">DATA:</div>
+                <div class="bulletin-value" id="bulletin-date" style="font-size: 13px; font-weight: bold;">-</div>
+            </div>
+            <div class="bulletin-meta-col" style="width: 35%; padding: 8px; border-right: 1px solid #000;">
+                <div style="font-size: 9px; font-weight: bold; color: #555;">FROTA CARRO:</div>
+                <div class="bulletin-value" id="bulletin-frota" style="font-size: 13px; font-weight: bold;">-</div>
+            </div>
+            <div class="bulletin-meta-col" style="width: 40%; padding: 8px;">
+                <div style="font-size: 9px; font-weight: bold; color: #555;">MODELO:</div>
+                <div class="bulletin-value" id="bulletin-modelo" style="font-size: 13px; font-weight: bold;">-</div>
+            </div>
+        </div>
+
+        <table class="bulletin-drivers-table" style="width: 100%; border-collapse: collapse; border: 1px solid #000; margin-bottom: 15px;">
+            <tr>
+                <td style="width: 50%; border-right: 1px solid #000; padding: 8px; vertical-align: top;">
+                    <div style="margin-bottom: 5px;"><strong style="font-size: 9px;">MOTORISTA TURNO A:</strong> <span id="bulletin-driver-a" style="font-size: 11px; margin-left: 5px;">-</span></div>
+                    <div style="margin-bottom: 5px;"><strong style="font-size: 9px;">MOTORISTA TURNO B:</strong> <span id="bulletin-driver-b" style="font-size: 11px; margin-left: 5px;">-</span></div>
+                    <div><strong style="font-size: 9px;">MOTORISTA TURNO C:</strong> <span id="bulletin-driver-c" style="font-size: 11px; margin-left: 5px;">-</span></div>
+                </td>
+                <td style="width: 50%; padding: 8px; vertical-align: top;">
+                    <div style="margin-bottom: 5px;"><strong style="font-size: 9px;">MATRÍCULA:</strong> <span id="bulletin-mat-a" style="font-size: 11px; margin-left: 5px;">-</span></div>
+                    <div style="margin-bottom: 5px;"><strong style="font-size: 9px;">MATRÍCULA:</strong> <span id="bulletin-mat-b" style="font-size: 11px; margin-left: 5px;">-</span></div>
+                    <div><strong style="font-size: 9px;">MATRÍCULA:</strong> <span id="bulletin-mat-c" style="font-size: 11px; margin-left: 5px;">-</span></div>
+                </td>
+            </tr>
+        </table>
+
+        <table class="bulletin-inspection-table" style="width: 100%; border-collapse: collapse; border: 1px solid #000; margin-bottom: 15px;">
+            <thead>
+                <tr style="background-color: #f0f0f0; border-bottom: 1px solid #000;">
+                    <th rowspan="2" style="width: 35%; border: 1px solid #000; padding: 6px; font-size: 9px; text-align: left;">INSPEÇÃO</th>
+                    <th colspan="2" style="width: 15%; border: 1px solid #000; padding: 4px; font-size: 9px; text-align: center;">TURNO A</th>
+                    <th colspan="2" style="width: 15%; border: 1px solid #000; padding: 4px; font-size: 9px; text-align: center;">TURNO B</th>
+                    <th colspan="2" style="width: 15%; border: 1px solid #000; padding: 4px; font-size: 9px; text-align: center;">TURNO C</th>
+                    <th rowspan="2" style="width: 20%; border: 1px solid #000; padding: 6px; font-size: 9px; text-align: center;">OBSERVAÇÃO</th>
+                </tr>
+                <tr style="background-color: #f9f9f9; border-bottom: 1px solid #000;">
+                    <th style="border: 1px solid #000; padding: 3px; font-size: 8px; text-align: center;">SIM</th>
+                    <th style="border: 1px solid #000; padding: 3px; font-size: 8px; text-align: center;">NÃO</th>
+                    <th style="border: 1px solid #000; padding: 3px; font-size: 8px; text-align: center;">SIM</th>
+                    <th style="border: 1px solid #000; padding: 3px; font-size: 8px; text-align: center;">NÃO</th>
+                    <th style="border: 1px solid #000; padding: 3px; font-size: 8px; text-align: center;">SIM</th>
+                    <th style="border: 1px solid #000; padding: 3px; font-size: 8px; text-align: center;">NÃO</th>
+                </tr>
+            </thead>
+            <tbody id="bulletin-inspection-rows" style="font-size: 10px;">
+                <!-- Preenchido dinamicamente via JS -->
+            </tbody>
+        </table>
+
+        <table class="bulletin-conditions-table" style="width: 100%; border-collapse: collapse; border: 1px solid #000; margin-bottom: 15px;">
+            <tr style="border-bottom: 1px solid #000;">
+                <td style="width: 40%; padding: 8px; font-weight: bold; font-size: 9px; border-right: 1px solid #000; background-color: #f0f0f0;">O EQUIPAMENTO ESTÁ EM CONDIÇÕES DE TRABALHO?</td>
+                <td style="width: 20%; padding: 6px; text-align: center; border-right: 1px solid #000;">
+                    <div style="font-size: 8px; font-weight: bold; color: #555;">TURNO A</div>
+                    <span id="bulletin-cond-a" style="font-size: 10px; font-weight: bold;">( ) SIM  ( ) NÃO</span>
+                </td>
+                <td style="width: 20%; padding: 6px; text-align: center; border-right: 1px solid #000;">
+                    <div style="font-size: 8px; font-weight: bold; color: #555;">TURNO B</div>
+                    <span id="bulletin-cond-b" style="font-size: 10px; font-weight: bold;">( ) SIM  ( ) NÃO</span>
+                </td>
+                <td style="width: 20%; padding: 6px; text-align: center;">
+                    <div style="font-size: 8px; font-weight: bold; color: #555;">TURNO C</div>
+                    <span id="bulletin-cond-c" style="font-size: 10px; font-weight: bold;">( ) SIM  ( ) NÃO</span>
+                </td>
+            </tr>
+        </table>
+
+        <table class="bulletin-notes-table" style="width: 100%; border-collapse: collapse; border: 1px solid #000; margin-bottom: 20px;">
+            <thead>
+                <tr style="background-color: #f0f0f0; border-bottom: 1px solid #000;">
+                    <th style="width: 33.3%; border: 1px solid #000; padding: 5px; font-size: 9px; text-align: center;">OBSERVAÇÃO TURNO A</th>
+                    <th style="width: 33.3%; border: 1px solid #000; padding: 5px; font-size: 9px; text-align: center;">OBSERVAÇÃO TURNO B</th>
+                    <th style="width: 33.3%; border: 1px solid #000; padding: 5px; font-size: 9px; text-align: center;">OBSERVAÇÃO TURNO C</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td id="bulletin-note-a" style="border: 1px solid #000; padding: 10px; font-size: 10px; height: 50px; vertical-align: top; font-style: italic;">-</td>
+                    <td id="bulletin-note-b" style="border: 1px solid #000; padding: 10px; font-size: 10px; height: 50px; vertical-align: top; font-style: italic;">-</td>
+                    <td id="bulletin-note-c" style="border: 1px solid #000; padding: 10px; font-size: 10px; height: 50px; vertical-align: top; font-style: italic;">-</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <table class="bulletin-signature-table" style="width: 100%; border-collapse: collapse; border: 1px solid #000; text-align: center;">
+            <tr>
+                <td style="width: 50%; padding: 15px; border-right: 1px solid #000;">
+                    <div style="font-size: 9px; font-weight: bold; margin-bottom: 15px;">ASSINATURA DO OPERADOR</div>
+                    <div id="bulletin-sig-operator" style="font-size: 12px; font-weight: bold; border-bottom: 1px solid #000; display: inline-block; width: 80%; padding-bottom: 2px;">-</div>
+                </td>
+                <td style="width: 50%; padding: 15px;">
+                    <div style="font-size: 9px; font-weight: bold; margin-bottom: 15px;">ASSINATURA DA SUPERVISÃO / MANUTENÇÃO</div>
+                    <div style="border-bottom: 1px dashed #777; width: 80%; display: inline-block; height: 16px;"></div>
+                </td>
+            </tr>
+        </table>
+        
+        <div class="bulletin-footer" style="text-align: center; margin-top: 20px; font-size: 9px; color: #777; letter-spacing: 1px;">
+            GERADO ELETRONICAMENTE PELO CHECKLIST CENTRAL
+        </div>
     </div>
 
     <!-- Script da Aplicação -->
