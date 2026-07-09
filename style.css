@@ -7,12 +7,12 @@
     --bg-card: rgba(13, 20, 32, 0.65);
     --bg-input: rgba(7, 10, 16, 0.6);
     --border-color: rgba(255, 255, 255, 0.08);
-    --border-glow: rgba(0, 242, 254, 0.15);
+    --border-glow: rgba(0, 200, 83, 0.15);
     
-    /* Neon Accent Colors */
-    --accent-primary: #00f2fe;
-    --accent-primary-glow: rgba(0, 242, 254, 0.35);
-    --accent-secondary: #4facfe;
+    /* Neon Accent Colors - Usina Santa Adélia Green Theme */
+    --accent-primary: #00c853;
+    --accent-primary-glow: rgba(0, 200, 83, 0.35);
+    --accent-secondary: #78be20;
     
     --color-success: #00e676;
     --color-success-bg: rgba(0, 230, 118, 0.1);

@@ -1,0 +1,18 @@
+{
+  "name": "Checklist Central - Santa Adélia",
+  "short_name": "Checklist Central",
+  "description": "Sistema de Checklist e Inspeção Diária de Frota para a Usina Santa Adélia.",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#070a10",
+  "theme_color": "#00c853",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
