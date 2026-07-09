@@ -132,11 +132,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnShareWhatsapp = document.getElementById('btn-share-whatsapp');
     const btnRestart = document.getElementById('btn-restart');
 
+    // Elementos do Dropdown de Busca de Frota
+    const selectFrota = document.getElementById('frota');
+    const frotaSearch = document.getElementById('frota-search');
+    const dropdownTrigger = document.getElementById('frota-dropdown-trigger');
+    const dropdownList = document.getElementById('frota-dropdown-list');
+
     // ==========================================================================
     // CARREGAR FROTA DINAMICAMENTE
     // ==========================================================================
     async function loadFleets() {
-        const selectFrota = document.getElementById('frota');
         if (!selectFrota) return;
 
         try {
@@ -157,18 +162,45 @@ document.addEventListener('DOMContentLoaded', () => {
             fleets.sort((a, b) => a.order - b.order);
             selectFrota.innerHTML = '';
             
+            if (dropdownList) {
+                dropdownList.innerHTML = '';
+            }
+            
             if (fleets.length === 0) {
                 selectFrota.innerHTML = '<option value="" disabled selected hidden>Nenhum veículo cadastrado (Acesse /admin.html)</option>';
+                if (dropdownList) {
+                    dropdownList.innerHTML = '<div style="padding: 12px; color: var(--text-muted); text-align: center; font-size: 0.85rem;">Nenhum veículo cadastrado</div>';
+                }
                 return;
             }
 
             selectFrota.innerHTML = '<option value="" disabled selected hidden>Selecione o veículo</option>';
             fleets.forEach(fleet => {
+                // Preenche o select escondido
                 const opt = document.createElement('option');
                 opt.value = fleet.name;
                 opt.textContent = fleet.name;
                 opt.setAttribute('data-modelo', fleet.model || 'Inspeção Diária');
                 selectFrota.appendChild(opt);
+
+                // Preenche a lista customizada do dropdown de pesquisa
+                if (dropdownList) {
+                    const item = document.createElement('div');
+                    item.className = 'custom-dropdown-item';
+                    item.setAttribute('data-value', fleet.name);
+                    item.setAttribute('data-modelo', fleet.model || 'Inspeção Diária');
+                    item.innerHTML = `
+                        <span class="item-name" style="font-weight: 600;">${fleet.name}</span>
+                        <span class="item-model" style="font-size: 0.75rem; color: var(--text-secondary); font-style: italic;">(${fleet.model || '-'})</span>
+                    `;
+                    
+                    // Evento de clique para selecionar o veículo
+                    item.addEventListener('click', () => {
+                        selectVehicleFromDropdown(fleet.name, fleet.model || 'Inspeção Diária');
+                    });
+                    
+                    dropdownList.appendChild(item);
+                }
             });
         } catch (error) {
             console.error("Erro ao carregar frotas do Firestore:", error);
@@ -479,12 +511,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         else if (currentStep === 5) {
-            const selectFrota = document.getElementById('frota');
             const val = selectFrota.value;
             const error = document.getElementById('error-frota');
 
-            if (!val) {
+            if (!val || frotaSearch.value !== val) {
                 error.style.display = 'flex';
+                if (frotaSearch) frotaSearch.focus();
                 isValid = false;
             } else {
                 error.style.display = 'none';
@@ -707,6 +739,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         document.getElementById('turno').selectedIndex = 0;
         document.getElementById('frota').selectedIndex = 0;
+        if (frotaSearch) frotaSearch.value = '';
+        state.modelo = '';
         document.getElementById('confirm-declaration').checked = false;
         nextShiftObs.value = '';
 
@@ -1141,6 +1175,124 @@ document.addEventListener('DOMContentLoaded', () => {
         const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
         window.open(whatsappUrl, '_blank');
     }
+
+    // ==========================================================================
+    // CONTROLES DO DROPDOWN BUSCA DE FROTA
+    // ==========================================================================
+    function selectVehicleFromDropdown(name, model) {
+        if (!frotaSearch || !selectFrota) return;
+
+        frotaSearch.value = name;
+        selectFrota.value = name;
+        state.frota = name;
+        state.modelo = model;
+
+        // Dispara evento change no select real para disparar busca de notas de turno
+        const event = new Event('change', { bubbles: true });
+        selectFrota.dispatchEvent(event);
+
+        closeFrotaDropdown();
+    }
+
+    function filterFrotaDropdown() {
+        if (!frotaSearch || !dropdownList) return;
+        const queryText = frotaSearch.value.toLowerCase().trim();
+        const items = dropdownList.querySelectorAll('.custom-dropdown-item');
+        let hasMatches = false;
+
+        items.forEach(item => {
+            const val = item.getAttribute('data-value').toLowerCase();
+            const mod = item.getAttribute('data-modelo').toLowerCase();
+            if (val.includes(queryText) || mod.includes(queryText)) {
+                item.style.display = 'flex';
+                hasMatches = true;
+            } else {
+                item.style.display = 'none';
+            }
+        });
+
+        // Exibe mensagem de vazio
+        const noMatchDiv = dropdownList.querySelector('.no-matches-found');
+        if (!hasMatches) {
+            if (!noMatchDiv) {
+                const empty = document.createElement('div');
+                empty.className = 'no-matches-found';
+                empty.style.cssText = 'padding: 12px; color: var(--text-muted); text-align: center; font-size: 0.85rem;';
+                empty.textContent = 'Nenhum veículo encontrado';
+                dropdownList.appendChild(empty);
+            }
+        } else {
+            if (noMatchDiv) {
+                noMatchDiv.remove();
+            }
+        }
+    }
+
+    function openFrotaDropdown() {
+        if (!dropdownList || !dropdownTrigger) return;
+        dropdownList.style.display = 'block';
+        dropdownTrigger.classList.add('active');
+        filterFrotaDropdown();
+    }
+
+    function closeFrotaDropdown() {
+        if (!dropdownList || !dropdownTrigger) return;
+        dropdownList.style.display = 'none';
+        dropdownTrigger.classList.remove('active');
+    }
+
+    function setupFrotaDropdownEvents() {
+        if (!frotaSearch || !dropdownTrigger) return;
+
+        // Ao focar ou clicar no input, abre
+        frotaSearch.addEventListener('focus', openFrotaDropdown);
+        frotaSearch.addEventListener('click', openFrotaDropdown);
+
+        // Ao digitar, filtra
+        frotaSearch.addEventListener('input', () => {
+            openFrotaDropdown();
+            filterFrotaDropdown();
+            
+            // Reseta o select real caso digite e quebre a correspondência direta
+            const match = Array.from(selectFrota.options).some(opt => opt.value === frotaSearch.value);
+            if (!match) {
+                selectFrota.value = '';
+                state.frota = '';
+            }
+        });
+
+        // Botão de trigger
+        dropdownTrigger.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (dropdownList.style.display === 'block') {
+                closeFrotaDropdown();
+            } else {
+                frotaSearch.focus();
+            }
+        });
+
+        // Fechar se clicar fora do container
+        document.addEventListener('click', (e) => {
+            const container = document.getElementById('frota-dropdown-container');
+            if (container && !container.contains(e.target)) {
+                closeFrotaDropdown();
+                
+                // Se fechou e o texto digitado não é um veículo válido da lista, limpa o campo
+                const match = Array.from(selectFrota.options).find(opt => opt.value === frotaSearch.value);
+                if (!match && frotaSearch.value !== '') {
+                    frotaSearch.value = '';
+                    selectFrota.value = '';
+                    state.frota = '';
+                    // Dispara change para limpar observações antigas se houver
+                    const event = new Event('change', { bubbles: true });
+                    selectFrota.dispatchEvent(event);
+                }
+            }
+        });
+    }
+
+    // Chama o setup
+    setupFrotaDropdownEvents();
 
     // Inicializa o checklist
     initializeChecklist();

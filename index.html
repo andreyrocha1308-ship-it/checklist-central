@@ -19,7 +19,7 @@
     <meta name="theme-color" content="#00c853">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="apple-touch-icon" href="icon.png">
+    <link rel="apple-touch-icon" href="icon.svg">
     
     <!-- Biblioteca html2canvas para capturar a imagem do boletim -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -161,20 +161,30 @@
                         <div class="step-number">05</div>
                         <h2>Seleção de Veículo / Máquina</h2>
                         <p>Escolha o veículo da frota que você operará neste turno.</p>
-                    </div>
-                    <div class="input-group">
-                        <label for="frota">Veículo / Frota</label>
-                        <div class="select-wrapper">
+                     <div class="input-group">
+                        <label for="frota-search">Veículo / Frota</label>
+                        <div class="input-wrapper custom-searchable-dropdown" id="frota-dropdown-container" style="position: relative;">
                             <svg class="input-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1 .4-1 1v7c0 .6.4 1 1 1h1"/>
                                 <circle cx="7.5" cy="17.5" r="2.5"/>
                                 <circle cx="16.5" cy="17.5" r="2.5"/>
                             </svg>
-                            <select id="frota" required>
-                                <option value="" disabled selected hidden>Carregando frotas...</option>
+                            <input type="text" id="frota-search" placeholder="Digite para buscar o veículo..." required autocomplete="off" style="width: 100%; padding-right: 40px !important;">
+                            <button type="button" class="dropdown-trigger-btn" id="frota-dropdown-trigger" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: transparent; border: none; color: var(--text-secondary); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 4px; border-radius: 4px; z-index: 5;">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 16px; height: 16px; transition: transform var(--transition-fast);"><polyline points="6 9 12 15 18 9"/></svg>
+                            </button>
+                            
+                            <!-- Hidden select for database queries and retrocompatibility -->
+                            <select id="frota" style="display: none;" required>
+                                <option value="" disabled selected hidden>Selecione o veículo</option>
                             </select>
+                            
+                            <!-- Custom dropdown list box -->
+                            <div class="custom-dropdown-list" id="frota-dropdown-list" style="display: none; position: absolute; top: 100%; left: 0; width: 100%; max-height: 200px; background: #0d1420; border: 1px solid var(--border-color); border-radius: 10px; margin-top: 5px; overflow-y: auto; z-index: 100; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+                                <!-- Opções carregadas via JS -->
+                            </div>
                         </div>
-                        <span class="validation-message" id="error-frota">Por favor, selecione um veículo da frota.</span>
+                        <span class="validation-message" id="error-frota">Por favor, selecione um veículo válido da lista.</span>
                         
                         <!-- Alerta de observação do turno anterior (Firestore query) -->
                         <div class="next-shift-alert" id="prev-shift-notes-container" style="display: none;">

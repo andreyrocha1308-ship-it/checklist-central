@@ -19,7 +19,7 @@
     <meta name="theme-color" content="#00c853">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="apple-touch-icon" href="icon.png">
+    <link rel="apple-touch-icon" href="icon.svg">
 </head>
 <body class="admin-body">
     <!-- LOGIN SCREEN (PRE-DEFINED) -->
@@ -62,9 +62,14 @@
                     Usuário ou senha incorretos!
                 </span>
                 
-                <button type="submit" class="btn-action btn-primary" style="width: 100%; margin-top: 25px;">
-                    Acessar Painel
-                </button>
+                <div style="display: flex; gap: 12px; margin-top: 25px;">
+                    <a href="index.html" class="btn-action btn-back" style="width: 35%; display: flex; align-items: center; justify-content: center; text-decoration: none; font-size: 0.9rem; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; border: 1px solid var(--border-color); border-radius: 10px; color: var(--text-primary); transition: all var(--transition-fast); background-color: rgba(255,255,255,0.02);">
+                        Voltar
+                    </a>
+                    <button type="submit" class="btn-action btn-primary" style="width: 65%;">
+                        Acessar Painel
+                    </button>
+                </div>
             </form>
         </div>
     </div>
