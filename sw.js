@@ -1,4 +1,4 @@
-const CACHE_NAME = 'checklist-central-v2';
+const CACHE_NAME = 'checklist-central-v3';
 const ASSETS = [
     './',
     './index.html',
@@ -7,7 +7,8 @@ const ASSETS = [
     './app.js',
     './admin.js',
     './manifest.json',
-    './icon.png'
+    './icon.png',
+    './logo_santa_adelia.png'
 ];
 
 // Instalação do Service Worker e caching de recursos essenciais

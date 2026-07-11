@@ -225,6 +225,35 @@
                 <div id="dynamic-checklist-container">
                     <!-- O JS renderizará os passos de checklist aqui -->
                 </div>
+                <!-- ETAPA: Condição do Equipamento -->
+                <div class="step-card" id="equip-condition-step" style="display: none;">
+                    <div class="step-header">
+                        <div class="step-number" id="equip-condition-step-number">06</div>
+                        <h2>Avaliação de Uso</h2>
+                        <p class="question-title">O equipamento está em condições de trabalho?</p>
+                    </div>
+                    <div class="input-group">
+                        <div class="option-buttons-container">
+                            <button type="button" class="btn-option btn-yes" id="btn-equip-cond-yes">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="20 6 9 17 4 12"/>
+                                </svg>
+                                Sim
+                            </button>
+                            <button type="button" class="btn-option btn-no" id="btn-equip-cond-no">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                                    <line x1="18" y1="6" x2="6" y2="18"/>
+                                    <line x1="6" y1="6" x2="18" y2="18"/>
+                                </svg>
+                                Não
+                            </button>
+                        </div>
+                        <span class="validation-message" id="error-equip-condition">
+                            Por favor, informe se o equipamento está em condições de trabalho.
+                        </span>
+                    </div>
+                </div>
+
                 <!-- ETAPA: Observações para o Próximo Turno -->
                 <div class="step-card" id="next-shift-step" style="display: none;">
                     <div class="step-header">
@@ -377,7 +406,9 @@
         style="position: fixed; left: 0; top: 0; z-index: -1000; display: none; width: 800px; background-color: #ffffff; color: #000000; padding: 25px; font-family: Arial, sans-serif; box-sizing: border-box; border: 2px solid #000;">
         <div class="bulletin-header"
             style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 15px;">
-            <div class="bulletin-logo-left" style="font-size: 24px; font-weight: 900; letter-spacing: 2px;">X5X</div>
+            <div class="bulletin-logo-left" style="display: flex; align-items: center; max-height: 45px;">
+                <img src="./logo_santa_adelia.png" alt="Logo Usina Santa Adélia" style="height: 38px; width: auto; max-width: 150px; object-fit: contain;">
+            </div>
             <div class="bulletin-title-container" style="text-align: center; flex-grow: 1;">
                 <div class="bulletin-main-title"
                     style="font-size: 16px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px;">CHECK
@@ -385,7 +416,7 @@
             </div>
             <div class="bulletin-logo-right"
                 style="font-size: 14px; font-weight: 700; font-style: italic; border: 1px solid #000; padding: 3px 8px; border-radius: 4px;">
-                Mantenedor M</div>
+                Operador Mantenedor</div>
         </div>
         <div class="bulletin-meta-row" style="display: flex; border: 1px solid #000; margin-bottom: 15px;">
             <div class="bulletin-meta-col" style="width: 25%; padding: 8px; border-right: 1px solid #000;">
@@ -523,6 +554,63 @@
             GERADO ELETRONICAMENTE PELO CHECKLIST CENTRAL
         </div>
     </div>
+    <!-- POPUP MODERNO DE INSTALAÇÃO PWA -->
+    <div id="pwa-install-popup" class="pwa-install-popup" style="display: none;">
+        <div class="pwa-install-card">
+            <button type="button" class="btn-close-install" id="btn-close-install" title="Fechar">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+            </button>
+            <div class="pwa-install-glow"></div>
+            <div class="pwa-install-content">
+                <div class="pwa-app-icon-wrapper">
+                    <img src="icon.png" alt="App Icon" class="pwa-app-icon">
+                </div>
+                <h2>Instalar App Central</h2>
+                <p class="pwa-install-tagline">Usina Santa Adélia</p>
+                <p class="pwa-install-desc">Instale o aplicativo na sua tela de início para preencher checklists de forma rápida, mesmo sem internet!</p>
+                
+                <!-- Benefícios -->
+                <div class="pwa-benefits">
+                    <div class="benefit-item">
+                        <span class="benefit-icon">⚡</span>
+                        <span>Acesso instantâneo e mais rápido</span>
+                    </div>
+                    <div class="benefit-item">
+                        <span class="benefit-icon">📶</span>
+                        <span>Funciona offline na usina</span>
+                    </div>
+                    <div class="benefit-item">
+                        <span class="benefit-icon">📱</span>
+                        <span>Sem ocupar memória do aparelho</span>
+                    </div>
+                </div>
+
+                <!-- Botões de Ação -->
+                <div class="pwa-install-actions">
+                    <button type="button" class="btn-action btn-primary" id="btn-pwa-install">
+                        Instalar Aplicativo
+                    </button>
+                    <button type="button" class="btn-action-text" id="btn-pwa-later">
+                        Continuar no Navegador
+                    </button>
+                </div>
+
+                <!-- Instruções específicas para iOS (inicialmente ocultas) -->
+                <div id="pwa-ios-instructions" style="display: none;" class="pwa-ios-instructions">
+                    <p class="ios-instruction-title">Como instalar no seu iPhone:</p>
+                    <ol>
+                        <li>Toque no ícone de compartilhamento <svg class="ios-share-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle; margin: 0 2px; color: #007aff;"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg> (na barra inferior do Safari)</li>
+                        <li>Role a tela para baixo e selecione <strong>"Adicionar à Tela de Início"</strong> <svg class="ios-add-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle; margin: 0 2px; color: #007aff;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg></li>
+                        <li>Toque em <strong>"Adicionar"</strong> no canto superior direito.</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Script da Aplicação -->
     <script type="module" src="app.js"></script>
 </body>

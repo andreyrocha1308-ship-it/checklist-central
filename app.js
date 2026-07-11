@@ -78,7 +78,8 @@ document.addEventListener('DOMContentLoaded', () => {
         modelo: '',
         answers: {}, // Estrutura: { questionId: { value: 'Sim'|'Não', details: 'Texto opcional' } }
         declarationConfirmed: false,
-        nextShiftNotes: ''
+        nextShiftNotes: '',
+        equipamentoCondicao: ''
     };
 
     let currentStep = 1;
@@ -86,9 +87,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Passos fixos iniciais: 5 (Matrícula, Nome, Data, Turno, Frota)
     const fixedStepsCount = 5;
     // Checklist dinâmico: checklistQuestions.length
+    // Passo de avaliação do equipamento: 1
     // Passo de Notas do próximo turno: 1
     // Passo de resumo final: 1
-    const totalSteps = fixedStepsCount + checklistQuestions.length + 2;
+    const totalSteps = fixedStepsCount + checklistQuestions.length + 3;
 
     // ==========================================================================
     // REFERÊNCIAS DOS ELEMENTOS DO DOM
@@ -337,6 +339,16 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
 
+        // Configura o número do passo de condição do equipamento de forma dinâmica
+        const equipConditionStep = document.getElementById('equip-condition-step');
+        if (equipConditionStep) {
+            equipConditionStep.setAttribute('data-step', String(totalSteps - 2));
+        }
+        const equipConditionStepNumber = document.getElementById('equip-condition-step-number');
+        if (equipConditionStepNumber) {
+            equipConditionStepNumber.textContent = String(totalSteps - 2).padStart(2, '0');
+        }
+
         // Configura o número do passo de passagem de turno de forma dinâmica
         if (nextShiftStep) {
             nextShiftStep.setAttribute('data-step', String(totalSteps - 1));
@@ -437,6 +449,8 @@ document.addEventListener('DOMContentLoaded', () => {
             progressStepText.textContent = `Identificação - Passo ${currentStep} de ${totalSteps}`;
         } else if (currentStep <= fixedStepsCount + checklistQuestions.length) {
             progressStepText.textContent = `Itens do Veículo - Passo ${currentStep} de ${totalSteps}`;
+        } else if (currentStep === totalSteps - 2) {
+            progressStepText.textContent = `Avaliação de Uso - Passo ${currentStep} de ${totalSteps}`;
         } else if (currentStep === totalSteps - 1) {
             progressStepText.textContent = `Notas de Turno - Passo ${currentStep} de ${totalSteps}`;
         } else {
@@ -536,6 +550,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 error.style.display = 'none';
             }
         }
+        else if (currentStep === totalSteps - 2) {
+            // Valida a etapa de condição do equipamento
+            const error = document.getElementById('error-equip-condition');
+            if (!state.equipamentoCondicao) {
+                if (error) error.style.display = 'flex';
+                isValid = false;
+            } else {
+                if (error) error.style.display = 'none';
+            }
+        }
         else if (currentStep === totalSteps - 1) {
             // Passo de passagem de turno (opcional, sempre válido)
             state.nextShiftNotes = nextShiftObs.value.trim();
@@ -598,6 +622,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
             sumChecklistList.appendChild(row);
         });
+
+        // Adiciona a resposta de condição do equipamento ao resumo
+        if (state.equipamentoCondicao) {
+            const condRow = document.createElement('div');
+            condRow.className = 'summary-check-row';
+            condRow.style.borderTop = '1px dashed var(--border-color)';
+            condRow.style.marginTop = '15px';
+            condRow.style.paddingTop = '15px';
+            const condBadgeClass = state.equipamentoCondicao === 'Sim' ? 'yes' : 'no';
+            condRow.innerHTML = `
+                <div class="sum-question-info">
+                    <span class="sum-question-title" style="font-weight: 700;">Equipamento em condições de trabalho?</span>
+                </div>
+                <span class="sum-answer-badge ${condBadgeClass}">${state.equipamentoCondicao}</span>
+            `;
+            sumChecklistList.appendChild(condRow);
+        }
     }
 
     async function processFinalSubmission() {
@@ -619,7 +660,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Verifica se há alguma resposta "Não" (que indica falha no veículo)
         const hasFailures = Object.values(state.answers).some(ans => ans.value === 'Não');
-        const checklistStatus = hasFailures ? 'Atenção / Manutenção' : 'Aprovado para Uso';
+        const checklistStatus = (hasFailures || state.equipamentoCondicao === 'Não') ? 'Atenção / Manutenção' : 'Aprovado para Uso';
         
         // Gera um ID de registro randômico
         const randomNum = Math.floor(100000 + Math.random() * 900000);
@@ -637,6 +678,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 status: checklistStatus,
                 answers: state.answers,
                 nextShiftNotes: state.nextShiftNotes,
+                equipamentoCondicao: state.equipamentoCondicao,
                 timestamp: serverTimestamp()
             });
 
@@ -650,7 +692,7 @@ document.addEventListener('DOMContentLoaded', () => {
             navControls.style.display = 'none';
             
             // Define o status do veículo no recibo final
-            if (hasFailures) {
+            if (hasFailures || state.equipamentoCondicao === 'Não') {
                 receiptStatus.textContent = 'Atenção / Manutenção';
                 receiptStatus.className = 'status-badge atencao';
             } else {
@@ -728,6 +770,7 @@ document.addEventListener('DOMContentLoaded', () => {
         state.answers = {};
         state.declarationConfirmed = false;
         state.nextShiftNotes = '';
+        state.equipamentoCondicao = '';
 
         // Reseta Inputs no HTML
         document.getElementById('matricula').value = '';
@@ -744,6 +787,14 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('confirm-declaration').checked = false;
         nextShiftObs.value = '';
 
+        // Reseta botões de condição do equipamento
+        const btnEquipCondYes = document.getElementById('btn-equip-cond-yes');
+        const btnEquipCondNo = document.getElementById('btn-equip-cond-no');
+        const errorEquipCond = document.getElementById('error-equip-condition');
+        if (btnEquipCondYes) btnEquipCondYes.classList.remove('selected');
+        if (btnEquipCondNo) btnEquipCondNo.classList.remove('selected');
+        if (errorEquipCond) errorEquipCond.style.display = 'none';
+
         // Oculta alertas de turno anterior
         prevShiftNotesContainer.style.display = 'none';
         prevShiftNotesText.textContent = '-';
@@ -752,6 +803,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Oculta tela de sucesso e exibe formulário principal
         successStep.style.display = 'none';
         nextShiftStep.style.display = 'none';
+        const equipConditionStep = document.getElementById('equip-condition-step');
+        if (equipConditionStep) equipConditionStep.style.display = 'none';
         summaryStep.style.display = 'none';
         
         form.style.display = 'block';
@@ -770,8 +823,8 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Verifica se há alguma falha
         const hasFailures = Object.values(state.answers).some(ans => ans.value === 'Não');
-        const statusLabel = hasFailures ? 'REQUER MANUTENÇÃO' : 'APROVADO PARA USO';
-        const statusColor = hasFailures ? '#ff1744' : '#00e676';
+        const statusLabel = (hasFailures || state.equipamentoCondicao === 'Não') ? 'REQUER MANUTENÇÃO' : 'APROVADO PARA USO';
+        const statusColor = (hasFailures || state.equipamentoCondicao === 'Não') ? '#ff1744' : '#00e676';
         
         // Constrói linhas das perguntas
         let questionsRowsHtml = '';
@@ -803,8 +856,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 <style>
                     body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #222; margin: 30px; line-height: 1.4; }
                     .header { display: flex; justify-content: space-between; border-bottom: 3px solid #111; padding-bottom: 15px; margin-bottom: 25px; }
-                    .header h1 { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: 1px; }
-                    .header .logo { font-size: 18px; color: #0288d1; font-weight: bold; }
+                    .header h1 { margin: 0; font-size: 18px; font-weight: 800; letter-spacing: 1px; }
+                    .header .logo { font-size: 14px; color: #2e7d32; font-weight: bold; }
                     .metadata-table { width: 100%; border-collapse: collapse; margin-bottom: 25px; }
                     .metadata-table td { padding: 8px; border: 1px solid #eee; font-size: 13px; }
                     .metadata-table td.label { font-weight: bold; background-color: #f7f9fa; width: 25%; }
@@ -826,10 +879,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     <button onclick="window.print();" style="padding: 8px 16px; background-color: #111; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">Imprimir Relatório</button>
                 </div>
                 
-                <div class="header">
-                    <div>
-                        <div class="logo">CHECKLIST CENTRAL</div>
-                        <h1>RELATÓRIO DE INSPEÇÃO DE EQUIPAMENTO</h1>
+                <div class="header" style="align-items: center;">
+                    <div style="display: flex; align-items: center; gap: 15px;">
+                        <img src="./logo_santa_adelia.png" alt="Logo Usina Santa Adélia" style="height: 45px; width: auto;">
+                        <div>
+                            <div class="logo" style="color: #2e7d32; font-size: 14px; letter-spacing: 1px;">USINA SANTA ADÉLIA</div>
+                            <h1 style="margin: 0; font-size: 18px;">RELATÓRIO DE INSPEÇÃO DE EQUIPAMENTO</h1>
+                        </div>
                     </div>
                     <div style="text-align: right; font-size: 12px; color: #666;">
                         <strong>ID:</strong> ${receiptId.textContent}<br>
@@ -853,6 +909,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td>${state.frota}</td>
                         <td class="label">Turno:</td>
                         <td>${state.turno}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Condições de Trabalho:</td>
+                        <td colspan="3" style="font-weight: bold; color: ${state.equipamentoCondicao === 'Sim' ? '#2e7d32' : '#c62828'};">${state.equipamentoCondicao}</td>
                     </tr>
                 </table>
 
@@ -1016,8 +1076,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Equipment in working conditions SIM/NÃO
-        const hasFailures = Object.values(state.answers).some(ans => ans.value === 'Não');
-        const condText = hasFailures ? '( ) SIM  ( X ) NÃO' : '( X ) SIM  ( ) NÃO';
+        const isCondSim = state.equipamentoCondicao === 'Sim';
+        const condText = isCondSim ? '( X ) SIM  ( ) NÃO' : '( ) SIM  ( X ) NÃO';
 
         if (isTurnoA) document.getElementById('bulletin-cond-a').textContent = condText;
         else if (isTurnoB) document.getElementById('bulletin-cond-b').textContent = condText;
@@ -1290,9 +1350,98 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Eventos do botão de condição do equipamento
+    const btnEquipCondYes = document.getElementById('btn-equip-cond-yes');
+    const btnEquipCondNo = document.getElementById('btn-equip-cond-no');
+    const errorEquipCond = document.getElementById('error-equip-condition');
+
+    if (btnEquipCondYes && btnEquipCondNo) {
+        btnEquipCondYes.addEventListener('click', () => {
+            state.equipamentoCondicao = 'Sim';
+            btnEquipCondYes.classList.add('selected');
+            btnEquipCondNo.classList.remove('selected');
+            if (errorEquipCond) errorEquipCond.style.display = 'none';
+        });
+
+        btnEquipCondNo.addEventListener('click', () => {
+            state.equipamentoCondicao = 'Não';
+            btnEquipCondYes.classList.remove('selected');
+            btnEquipCondNo.classList.add('selected');
+            if (errorEquipCond) errorEquipCond.style.display = 'none';
+        });
+    }
+
     // Chama o setup
     setupFrotaDropdownEvents();
 
     // Inicializa o checklist
     initializeChecklist();
+
+    // ==========================================================================
+    // LÓGICA DO POPUP DE INSTALAÇÃO DO PWA
+    // ==========================================================================
+    const installPopup = document.getElementById('pwa-install-popup');
+    const btnPwaInstall = document.getElementById('btn-pwa-install');
+    const btnPwaLater = document.getElementById('btn-pwa-later');
+    const btnCloseInstall = document.getElementById('btn-close-install');
+    const iosInstructions = document.getElementById('pwa-ios-instructions');
+
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+
+    let deferredPrompt;
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+        // Impede que a barra padrão do Chrome apareça
+        e.preventDefault();
+        deferredPrompt = e;
+        
+        // Exibe o popup se não estiver em standalone e não descartado nesta sessão
+        if (!isStandalone && !sessionStorage.getItem('pwaPromptDismissed')) {
+            if (installPopup) installPopup.style.display = 'flex';
+        }
+    });
+
+    // Exibe o popup para iOS ou outros dispositivos após um curto delay se não estiver em standalone
+    if (!isStandalone && !sessionStorage.getItem('pwaPromptDismissed')) {
+        setTimeout(() => {
+            if (installPopup) installPopup.style.display = 'flex';
+        }, 1500);
+    }
+
+    if (btnCloseInstall) {
+        btnCloseInstall.addEventListener('click', () => {
+            if (installPopup) installPopup.style.display = 'none';
+            sessionStorage.setItem('pwaPromptDismissed', 'true');
+        });
+    }
+
+    if (btnPwaLater) {
+        btnPwaLater.addEventListener('click', () => {
+            if (installPopup) installPopup.style.display = 'none';
+            sessionStorage.setItem('pwaPromptDismissed', 'true');
+        });
+    }
+
+    if (btnPwaInstall) {
+        btnPwaInstall.addEventListener('click', async () => {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                if (outcome === 'accepted') {
+                    if (installPopup) installPopup.style.display = 'none';
+                }
+                deferredPrompt = null;
+            } else if (isIOS) {
+                if (iosInstructions) {
+                    iosInstructions.style.display = 'block';
+                    // Oculta os botões padrão de ação para focar nas instruções
+                    btnPwaInstall.style.display = 'none';
+                    if (btnPwaLater) btnPwaLater.style.display = 'none';
+                }
+            } else {
+                alert("Para instalar este aplicativo: toque no menu de três pontos do seu navegador e selecione 'Instalar aplicativo' ou 'Adicionar à tela inicial'.");
+            }
+        });
+    }
 });

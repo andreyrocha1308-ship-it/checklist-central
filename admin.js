@@ -365,17 +365,25 @@ function renderChecklists() {
             <td>${item.nome || '-'}</td>
             <td>${item.turno || '-'}</td>
             <td><span class="status-indicator-dot ${statusClass}"></span>${statusLabel}</td>
-            <td style="text-align: center;">
-                <button type="button" class="btn-mini" data-id="${item.id}">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <td style="text-align: center; display: flex; gap: 6px; justify-content: center; align-items: center;">
+                <button type="button" class="btn-mini btn-view" data-id="${item.id}" style="display: inline-flex; align-items: center; gap: 4px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 14px; height: 14px;">
                         <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
                     </svg>
                     Ver Detalhes
                 </button>
+                <button type="button" class="btn-mini btn-delete-checklist" data-id="${item.id}" style="background-color: var(--color-danger-bg); border-color: var(--color-danger); color: var(--color-danger); display: inline-flex; align-items: center; gap: 4px; cursor: pointer;">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 14px; height: 14px;">
+                        <polyline points="3 6 5 6 21 6"/>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                    </svg>
+                    Apagar
+                </button>
             </td>
         `;
 
-        row.querySelector('.btn-mini').addEventListener('click', (e) => showChecklistDetails(item.id));
+        row.querySelector('.btn-view').addEventListener('click', (e) => showChecklistDetails(item.id));
+        row.querySelector('.btn-delete-checklist').addEventListener('click', (e) => handleDeleteChecklist(item.id));
         reportsTableRows.appendChild(row);
     });
 }
@@ -507,6 +515,18 @@ function showChecklistDetails(checklistId) {
     modalTurno.textContent = record.turno || '-';
     modalFrota.textContent = record.modelo ? `${record.frota} (${record.modelo})` : (record.frota || '-');
 
+    // Condição do Equipamento
+    const modalEquipCondition = document.getElementById('modal-equip-condition-value');
+    if (modalEquipCondition) {
+        if (record.equipamentoCondicao) {
+            modalEquipCondition.textContent = record.equipamentoCondicao;
+            modalEquipCondition.className = `badge badge-${record.equipamentoCondicao === 'Sim' ? 'yes' : 'no'}`;
+        } else {
+            modalEquipCondition.textContent = 'Não informado';
+            modalEquipCondition.className = 'badge';
+        }
+    }
+
     // Notas de Passagem de turno
     if (record.nextShiftNotes && record.nextShiftNotes.trim() !== '') {
         modalNextNotes.textContent = `"${record.nextShiftNotes}"`;
@@ -540,4 +560,20 @@ function showChecklistDetails(checklistId) {
     });
 
     detailsModal.style.display = 'flex';
+}
+
+async function handleDeleteChecklist(checklistId) {
+    if (!confirm("Tem certeza que deseja apagar este relatório de checklist permanentemente do banco de dados?")) {
+        return;
+    }
+
+    try {
+        await deleteDoc(doc(db, "checklists", checklistId));
+        await loadChecklistsData();
+        renderChecklists();
+        updateStats();
+    } catch (error) {
+        console.error("Erro ao deletar relatório:", error);
+        alert("Erro ao excluir o relatório. Por favor, tente novamente.");
+    }
 }
