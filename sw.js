@@ -1,9 +1,9 @@
-const CACHE_NAME = 'checklist-central-v3';
+const CACHE_NAME = 'checklist-central-v4';
 const ASSETS = [
     './',
     './index.html',
     './admin.html',
-    './style.css',
+    './style.css?v=3.1',
     './app.js',
     './admin.js',
     './manifest.json',

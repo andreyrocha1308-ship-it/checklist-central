@@ -15,7 +15,7 @@
         rel="stylesheet">
 
     <!-- Link para o CSS externo -->
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=3.1">
 
     <!-- PWA Manifest & Meta Tags -->
     <link rel="manifest" href="manifest.json">
@@ -555,7 +555,7 @@
         </div>
     </div>
     <!-- POPUP MODERNO DE INSTALAÇÃO PWA -->
-    <div id="pwa-install-popup" class="pwa-install-popup" style="display: none;">
+    <div id="pwa-install-popup" class="pwa-install-popup" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(4, 6, 10, 0.85); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); z-index: 10000; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; transform: translate3d(0, 0, 0);">
         <div class="pwa-install-card">
             <button type="button" class="btn-close-install" id="btn-close-install" title="Fechar">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">

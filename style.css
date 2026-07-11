@@ -69,26 +69,26 @@ body {
     padding: 40px 16px 20px 16px;
 }
 
-/* Background Glow Effects */
+/* Background Glow Effects - Optimized using radial-gradients without heavy blur filters */
 .bg-glow {
     position: absolute;
     width: 600px;
     height: 600px;
     border-radius: 50%;
-    filter: blur(130px);
-    opacity: 0.15;
+    opacity: 0.2;
     pointer-events: none;
     z-index: 0;
+    transform: translate3d(0, 0, 0); /* Force GPU acceleration */
 }
 
 .bg-glow-1 {
-    background: radial-gradient(circle, var(--accent-primary) 0%, transparent 70%);
+    background: radial-gradient(circle, rgba(0, 200, 83, 0.35) 0%, rgba(0, 200, 83, 0.1) 40%, transparent 70%);
     top: -100px;
     right: -100px;
 }
 
 .bg-glow-2 {
-    background: radial-gradient(circle, var(--accent-secondary) 0%, transparent 70%);
+    background: radial-gradient(circle, rgba(120, 190, 32, 0.35) 0%, rgba(120, 190, 32, 0.1) 40%, transparent 70%);
     bottom: -150px;
     left: -150px;
 }
@@ -230,14 +230,17 @@ body {
    ========================================================================== */
 .main-card {
     background: var(--bg-card);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
     border: 1px solid var(--border-color);
     border-radius: 20px;
     padding: 30px;
     box-shadow: var(--card-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.05);
     position: relative;
     overflow: visible;
+    transform: translate3d(0, 0, 0); /* Force GPU acceleration */
+    backface-visibility: hidden;
+    will-change: transform;
 }
 
 /* Glowing Border Accent for Card */
@@ -1270,8 +1273,8 @@ body {
 
 .stat-card {
     background: var(--bg-card);
-    backdrop-filter: blur(15px);
-    -webkit-backdrop-filter: blur(15px);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     border: 1px solid var(--border-color);
     border-radius: 16px;
     padding: 20px;
@@ -1279,6 +1282,7 @@ body {
     align-items: center;
     gap: 15px;
     box-shadow: var(--card-shadow);
+    transform: translate3d(0, 0, 0); /* Force GPU acceleration */
 }
 
 .stat-icon-wrapper {
@@ -1352,12 +1356,13 @@ body {
 
 .admin-column {
     background: var(--bg-card);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
     border: 1px solid var(--border-color);
     border-radius: 20px;
     padding: 25px;
     box-shadow: var(--card-shadow);
+    transform: translate3d(0, 0, 0); /* Force GPU acceleration */
 }
 
 .section-title-wrapper {
@@ -1840,14 +1845,15 @@ body {
     width: 100%;
     height: 100%;
     background-color: rgba(4, 6, 10, 0.85);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
     z-index: 10000;
     display: flex;
     justify-content: center;
     align-items: center;
     padding: 20px;
     animation: fadeIn var(--transition-fast) forwards;
+    transform: translate3d(0, 0, 0); /* Force GPU acceleration */
 }
 
 .pwa-install-card {
