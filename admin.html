@@ -14,12 +14,12 @@
         rel="stylesheet">
 
     <!-- Link para o CSS principal -->
-    <link rel="stylesheet" href="style.css?v=3.1">
+    <link rel="stylesheet" href="style.css?v=3.2">
 
     <!-- PWA Manifest & Meta Tags -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#00c853">
-    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="icon" type="image/png" href="icon.png">
     <link rel="apple-touch-icon" href="icon.png">
@@ -170,6 +170,26 @@
                 </div>
             </div>
         </section>
+        
+        <!-- SEÇÃO: Pendências Atuais da Frota (Veículos com Alertas) -->
+        <section class="admin-column current-pending-section" style="margin-bottom: 25px;">
+            <div class="section-title-wrapper" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                <div>
+                    <h2>Veículos Fora de Ordem / Com Pendências</h2>
+                    <p>Estado atual de cada veículo baseado no último checklist enviado.</p>
+                </div>
+                <div id="pending-count-badge" class="badge badge-no" style="font-weight: 700; font-size: 0.85rem; padding: 6px 12px; display: none;">
+                    0 Veículos com Pendências
+                </div>
+            </div>
+            
+            <div id="current-pending-vehicles-list" class="pending-vehicles-grid">
+                <div style="text-align: center; color: var(--text-muted); padding: 30px;">
+                    Carregando estado dos veículos...
+                </div>
+            </div>
+        </section>
+
         <!-- Área Principal em Duas Colunas -->
         <div class="admin-main-grid">
 
@@ -349,7 +369,7 @@
         </div>
     </div>
     <!-- Script de Administração -->
-    <script type="module" src="admin.js"></script>
+    <script type="module" src="admin.js?v=3.2"></script>
 </body>
 
 </html>

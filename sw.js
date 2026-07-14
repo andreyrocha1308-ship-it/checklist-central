@@ -1,11 +1,11 @@
-const CACHE_NAME = 'checklist-central-v4';
+const CACHE_NAME = 'checklist-central-v5';
 const ASSETS = [
     './',
     './index.html',
     './admin.html',
-    './style.css?v=3.1',
-    './app.js',
-    './admin.js',
+    './style.css?v=3.2',
+    './app.js?v=3.2',
+    './admin.js?v=3.2',
     './manifest.json',
     './icon.png',
     './logo_santa_adelia.png'

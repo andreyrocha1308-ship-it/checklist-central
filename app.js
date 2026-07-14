@@ -79,7 +79,8 @@ document.addEventListener('DOMContentLoaded', () => {
         answers: {}, // Estrutura: { questionId: { value: 'Sim'|'Não', details: 'Texto opcional' } }
         declarationConfirmed: false,
         nextShiftNotes: '',
-        equipamentoCondicao: ''
+        equipamentoCondicao: '',
+        pendingVerifications: [] // Estrutura: [{ id, type, title, message, status: 'pending'|'resolved'|'copied' }]
     };
 
     let currentStep = 1;
@@ -535,6 +536,18 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 error.style.display = 'none';
                 state.frota = val;
+
+                // Valida se todas as pendências foram respondidas
+                if (state.pendingVerifications && state.pendingVerifications.length > 0) {
+                    const unverified = state.pendingVerifications.some(pv => pv.status === 'pending');
+                    const pendingError = document.getElementById('error-pending-verification');
+                    if (unverified) {
+                        if (pendingError) pendingError.style.display = 'flex';
+                        isValid = false;
+                    } else {
+                        if (pendingError) pendingError.style.display = 'none';
+                    }
+                }
             }
         }
         else if (currentStep > fixedStepsCount && currentStep <= fixedStepsCount + checklistQuestions.length) {
@@ -771,6 +784,15 @@ document.addEventListener('DOMContentLoaded', () => {
         state.declarationConfirmed = false;
         state.nextShiftNotes = '';
         state.equipamentoCondicao = '';
+        state.pendingVerifications = [];
+
+        // Oculta e limpa verificação de pendências
+        const pendingSection = document.getElementById('pending-verification-section');
+        if (pendingSection) pendingSection.style.display = 'none';
+        const pendingList = document.getElementById('pending-verification-list');
+        if (pendingList) pendingList.innerHTML = '';
+        const pendingError = document.getElementById('error-pending-verification');
+        if (pendingError) pendingError.style.display = 'none';
 
         // Reseta Inputs no HTML
         document.getElementById('matricula').value = '';
@@ -973,15 +995,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            // Oculta e reseta o container enquanto busca
+            // Oculta e reseta o container e verificação enquanto busca
             prevShiftNotesContainer.style.display = 'none';
             prevShiftNotesText.textContent = '-';
             prevShiftNotesMeta.textContent = '-';
+            
+            const pendingSection = document.getElementById('pending-verification-section');
+            if (pendingSection) pendingSection.style.display = 'none';
+            const pendingListContainer = document.getElementById('pending-verification-list');
+            if (pendingListContainer) pendingListContainer.innerHTML = '';
+            const pendingError = document.getElementById('error-pending-verification');
+            if (pendingError) pendingError.style.display = 'none';
+            state.pendingVerifications = [];
 
             try {
                 // Consulta no Firestore pelo último checklist da frota selecionada
-                // Para evitar a necessidade de criar índices compostos no console do Firebase,
-                // filtramos por frota e depois ordenamos localmente pelo timestamp em JS.
                 const q = query(
                     collection(db, "checklists"), 
                     where("frota", "==", selectedVehicle)
@@ -992,15 +1020,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 querySnapshot.forEach((doc) => {
                     const data = doc.data();
-                    if (data.nextShiftNotes && data.nextShiftNotes.trim() !== '') {
-                        documents.push({
-                            notes: data.nextShiftNotes,
-                            nome: data.nome || 'Operador',
-                            matricula: data.matricula || '-',
-                            turno: data.turno || '-',
-                            timestamp: data.timestamp ? data.timestamp.toDate() : new Date(0)
-                        });
-                    }
+                    documents.push({
+                        answers: data.answers || {},
+                        nextShiftNotes: data.nextShiftNotes || '',
+                        equipamentoCondicao: data.equipamentoCondicao || '',
+                        nome: data.nome || 'Operador',
+                        matricula: data.matricula || '-',
+                        turno: data.turno || '-',
+                        timestamp: data.timestamp ? data.timestamp.toDate() : new Date(0)
+                    });
                 });
 
                 if (documents.length > 0) {
@@ -1009,18 +1037,178 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     const latestDoc = documents[0];
                     
-                    // Preenche os dados no HTML e exibe
-                    prevShiftNotesText.textContent = `"${latestDoc.notes}"`;
-                    
                     // Formata a data para exibição amigável
                     const dateOptions = { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' };
                     const formattedDate = latestDoc.timestamp.toLocaleDateString('pt-BR', dateOptions);
                     
                     prevShiftNotesMeta.textContent = `Operador: ${latestDoc.nome} (Mat. ${latestDoc.matricula}) | Turno: ${latestDoc.turno} (${formattedDate})`;
-                    prevShiftNotesContainer.style.display = 'flex';
+                    
+                    // Altera o título para indicar pendências se aplicável
+                    const prevShiftAlertTitle = document.getElementById('prev-shift-alert-title');
+                    if (prevShiftAlertTitle) {
+                        prevShiftAlertTitle.textContent = "Pendências do Turno Anterior";
+                    }
+
+                    // Identifica as pendências do checklist anterior
+                    const pendingList = [];
+
+                    // 1. Perguntas do checklist marcadas como "Não"
+                    if (latestDoc.answers) {
+                        for (const [qId, ans] of Object.entries(latestDoc.answers)) {
+                            if (ans.value === 'Não') {
+                                const questionObj = checklistQuestions.find(q => q.id === qId);
+                                const qTitle = questionObj ? questionObj.title : qId;
+                                pendingList.push({
+                                    id: qId,
+                                    type: 'question',
+                                    title: qTitle,
+                                    message: ans.details || 'Marcado como fora de ordem.'
+                                });
+                            }
+                        }
+                    }
+
+                    // 2. Condição de uso do equipamento
+                    if (latestDoc.equipamentoCondicao === 'Não') {
+                        pendingList.push({
+                            id: 'equip',
+                            type: 'equip',
+                            title: 'Avaliação de Uso',
+                            message: 'Equipamento marcado como SEM condições de uso.'
+                        });
+                    }
+
+                    // 3. Notas do próximo turno
+                    if (latestDoc.nextShiftNotes && latestDoc.nextShiftNotes.trim() !== '') {
+                        pendingList.push({
+                            id: 'general',
+                            type: 'general',
+                            title: 'Observação Geral',
+                            message: latestDoc.nextShiftNotes.trim()
+                        });
+                    }
+
+                    if (pendingList.length > 0) {
+                        // Salva no estado da aplicação
+                        state.pendingVerifications = pendingList.map(item => ({ ...item, status: 'pending' }));
+
+                        // Exibe a seção de verificação
+                        if (pendingSection && pendingListContainer) {
+                            pendingListContainer.innerHTML = '';
+                            
+                            state.pendingVerifications.forEach((item) => {
+                                const card = document.createElement('div');
+                                card.className = 'pending-verify-card';
+                                card.id = `pending-card-${item.id}`;
+                                
+                                card.innerHTML = `
+                                    <div class="pending-verify-header">
+                                        <span class="pending-verify-item-title">${item.title}</span>
+                                        <p class="pending-verify-item-message">"${item.message}"</p>
+                                    </div>
+                                    <div class="pending-verify-buttons">
+                                        <button type="button" class="btn-verify btn-verify-yes" id="btn-verify-yes-${item.id}">
+                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="width: 14px; height: 14px;"><polyline points="20 6 9 17 4 12"/></svg>
+                                            Está em ordem (Sim)
+                                        </button>
+                                        <button type="button" class="btn-verify btn-verify-no" id="btn-verify-no-${item.id}">
+                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 14px; height: 14px;"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                            ${item.type === 'general' ? 'Copiar para Notas' : 'Copiar Pendência'}
+                                        </button>
+                                    </div>
+                                `;
+
+                                pendingListContainer.appendChild(card);
+
+                                const btnYes = card.querySelector('.btn-verify-yes');
+                                const btnNo = card.querySelector('.btn-verify-no');
+
+                                btnYes.addEventListener('click', () => {
+                                    item.status = 'resolved';
+                                    btnYes.classList.add('selected');
+                                    btnNo.classList.remove('selected');
+                                    card.classList.add('resolved');
+                                    card.classList.remove('copied');
+
+                                    // Sincroniza com as etapas do formulário
+                                    if (item.type === 'question') {
+                                        const stepCard = document.querySelector(`.step-card[data-question-id="${item.id}"]`);
+                                        if (stepCard) {
+                                            const stepBtnYes = stepCard.querySelector('.btn-yes');
+                                            if (stepBtnYes) stepBtnYes.click();
+
+                                            // Limpa o textarea de observações
+                                            const textarea = stepCard.querySelector('textarea');
+                                            if (textarea) {
+                                                textarea.value = '';
+                                                textarea.dispatchEvent(new Event('input'));
+                                            }
+                                        }
+                                    } else if (item.type === 'equip') {
+                                        const equipYesBtn = document.getElementById('btn-equip-cond-yes');
+                                        if (equipYesBtn) equipYesBtn.click();
+                                    } else if (item.type === 'general') {
+                                        if (nextShiftObs.value === item.message) {
+                                            nextShiftObs.value = '';
+                                            state.nextShiftNotes = '';
+                                        }
+                                    }
+
+                                    // Oculta erro de validação se todos foram verificados
+                                    const unverified = state.pendingVerifications.some(pv => pv.status === 'pending');
+                                    if (!unverified && pendingError) {
+                                        pendingError.style.display = 'none';
+                                    }
+                                });
+
+                                btnNo.addEventListener('click', () => {
+                                    item.status = 'copied';
+                                    btnYes.classList.remove('selected');
+                                    btnNo.classList.add('selected');
+                                    card.classList.remove('resolved');
+                                    card.classList.add('copied');
+
+                                    // Sincroniza com as etapas do formulário
+                                    if (item.type === 'question') {
+                                        const stepCard = document.querySelector(`.step-card[data-question-id="${item.id}"]`);
+                                        if (stepCard) {
+                                            const stepBtnNo = stepCard.querySelector('.btn-no');
+                                            if (stepBtnNo) stepBtnNo.click();
+
+                                            // Copia a pendência para o textarea
+                                            const textarea = stepCard.querySelector('textarea');
+                                            if (textarea) {
+                                                textarea.value = item.message;
+                                                textarea.dispatchEvent(new Event('input'));
+                                            }
+                                        }
+                                    } else if (item.type === 'equip') {
+                                        const equipNoBtn = document.getElementById('btn-equip-cond-no');
+                                        if (equipNoBtn) equipNoBtn.click();
+                                    } else if (item.type === 'general') {
+                                        nextShiftObs.value = item.message;
+                                        state.nextShiftNotes = item.message;
+                                    }
+
+                                    // Oculta erro de validação se todos foram verificados
+                                    const unverified = state.pendingVerifications.some(pv => pv.status === 'pending');
+                                    if (!unverified && pendingError) {
+                                        pendingError.style.display = 'none';
+                                    }
+                                });
+                            });
+
+                            pendingSection.style.display = 'block';
+                        }
+
+                        prevShiftNotesContainer.style.display = 'flex';
+                    } else {
+                        // Se não há pendências na última submissão, oculta
+                        prevShiftNotesContainer.style.display = 'none';
+                    }
                 }
             } catch (error) {
-                console.error("Erro ao buscar notas do turno anterior:", error);
+                console.error("Erro ao buscar notas/pendências do turno anterior:", error);
             }
         });
     }

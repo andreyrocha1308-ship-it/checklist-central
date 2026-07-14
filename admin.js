@@ -27,6 +27,16 @@ const checklistQuestions = [
     { id: 'cinto_seguranca', title: 'Cinto de Segurança e Assento' }
 ];
 
+// Helper seguro para converter timestamp do Firestore em Date do JS
+function getTimestampDate(ts) {
+    if (!ts) return new Date(0);
+    if (typeof ts.toDate === 'function') return ts.toDate();
+    if (ts instanceof Date) return ts;
+    if (typeof ts === 'string' || typeof ts === 'number') return new Date(ts);
+    if (ts.seconds !== undefined) return new Date(ts.seconds * 1000 + (ts.nanoseconds || 0) / 1000000);
+    return new Date(0);
+}
+
 // Estado local da página Admin
 let localFleets = [];
 let localChecklists = [];
@@ -72,6 +82,11 @@ const loginError = document.getElementById('login-error');
 const adminWrapper = document.getElementById('admin-wrapper');
 
 document.addEventListener('DOMContentLoaded', async () => {
+    // Inicializa o filtro de data com o dia atual para evitar carregar relatórios antigos de uma vez
+    if (filterData) {
+        filterData.value = new Date().toISOString().split('T')[0];
+    }
+
     // 0. Controle de Login administrativo
     const checkLogin = () => {
         if (sessionStorage.getItem("adminLoggedIn") === "true") {
@@ -143,6 +158,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             renderFleets();
             populateFleetFilters();
             updateStats();
+            renderCurrentPendingIssues();
         } catch (error) {
             console.error("Erro ao cadastrar frota:", error);
             alert("Erro ao salvar no banco de dados.");
@@ -177,6 +193,7 @@ async function loadAllData() {
         populateFleetFilters();
         renderChecklists();
         updateStats();
+        renderCurrentPendingIssues();
     } catch (error) {
         console.error("Erro ao carregar dados do Firestore:", error);
     }
@@ -314,7 +331,7 @@ function renderChecklists() {
         // Filtro de Data
         if (selectedData) {
             // Se o checklist não tiver data confirmada (registros legados), usamos a data do timestamp
-            const docDate = c.data || (c.timestamp ? c.timestamp.toDate().toISOString().split('T')[0] : '');
+            const docDate = c.data || (c.timestamp ? getTimestampDate(c.timestamp).toISOString().split('T')[0] : '');
             if (docDate !== selectedData) return false;
         }
 
@@ -328,8 +345,8 @@ function renderChecklists() {
             return b.data.localeCompare(a.data);
         }
         // Se a data for igual ou faltar, compara por timestamp
-        const timeA = a.timestamp ? a.timestamp.toDate() : new Date(0);
-        const timeB = b.timestamp ? b.timestamp.toDate() : new Date(0);
+        const timeA = a.timestamp ? getTimestampDate(a.timestamp) : new Date(0);
+        const timeB = b.timestamp ? getTimestampDate(b.timestamp) : new Date(0);
         return timeB - timeA;
     });
 
@@ -353,7 +370,7 @@ function renderChecklists() {
             const parts = item.data.split('-');
             if (parts.length === 3) displayDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
         } else if (item.timestamp) {
-            displayDate = item.timestamp.toDate().toLocaleDateString('pt-BR');
+            displayDate = getTimestampDate(item.timestamp).toLocaleDateString('pt-BR');
         }
 
         const statusClass = item.status === 'Atenção / Manutenção' ? 'status-no' : 'status-yes';
@@ -423,6 +440,7 @@ async function handleEditFleet(target) {
         populateFleetFilters();
         renderChecklists(); // Atualiza a tabela se o nome do veículo listado mudar
         updateStats();
+        renderCurrentPendingIssues();
     } catch (error) {
         console.error("Erro ao atualizar veículo:", error);
         alert("Erro ao editar o veículo da frota.");
@@ -441,6 +459,7 @@ async function handleDeleteFleet(target) {
         renderFleets();
         populateFleetFilters();
         updateStats();
+        renderCurrentPendingIssues();
     } catch (error) {
         console.error("Erro ao deletar veículo:", error);
         alert("Erro ao excluir o veículo da frota.");
@@ -504,7 +523,7 @@ function showChecklistDetails(checklistId) {
         const parts = record.data.split('-');
         if (parts.length === 3) displayDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
     } else if (record.timestamp) {
-        displayDate = record.timestamp.toDate().toLocaleDateString('pt-BR');
+        displayDate = getTimestampDate(record.timestamp).toLocaleDateString('pt-BR');
     }
     
     modalSubtitle.textContent = `${record.checklistId || 'CK-######'} | Data: ${displayDate}`;
@@ -562,6 +581,149 @@ function showChecklistDetails(checklistId) {
     detailsModal.style.display = 'flex';
 }
 
+function renderCurrentPendingIssues() {
+    const listContainer = document.getElementById('current-pending-vehicles-list');
+    const badgeCount = document.getElementById('pending-count-badge');
+    if (!listContainer) return;
+    
+    listContainer.innerHTML = '';
+
+    const vehiclesWithPendencies = [];
+
+    // Para cada veículo cadastrado, encontra seu checklist mais recente
+    localFleets.forEach(fleet => {
+        // Filtra checklists deste veículo
+        const fleetChecklists = localChecklists.filter(c => c.frota === fleet.name);
+        
+        if (fleetChecklists.length === 0) return;
+
+        // Ordena por data/timestamp descrescente para pegar o último enviado
+        fleetChecklists.sort((a, b) => {
+            if (a.data && b.data && a.data !== b.data) {
+                return b.data.localeCompare(a.data);
+            }
+            const timeA = a.timestamp ? getTimestampDate(a.timestamp) : new Date(0);
+            const timeB = b.timestamp ? getTimestampDate(b.timestamp) : new Date(0);
+            return timeB - timeA;
+        });
+
+        const latestChecklist = fleetChecklists[0];
+
+        // Identifica as pendências deste último checklist
+        const pendencies = [];
+
+        // 1. Verificar checklist answers com "Não"
+        if (latestChecklist.answers) {
+            for (const [qId, ans] of Object.entries(latestChecklist.answers)) {
+                if (ans.value === 'Não') {
+                    const questionObj = checklistQuestions.find(q => q.id === qId);
+                    const qTitle = questionObj ? questionObj.title : qId;
+                    pendencies.push({
+                        type: 'checklist',
+                        title: qTitle,
+                        details: ans.details || 'Sem justificativa informada'
+                    });
+                }
+            }
+        }
+
+        // 2. Verificar equipamentoCondicao === 'Não'
+        if (latestChecklist.equipamentoCondicao === 'Não') {
+            pendencies.push({
+                type: 'condition',
+                title: 'Avaliação de Uso',
+                details: 'Equipamento marcado como SEM condições de uso.'
+            });
+        }
+
+        // Observações gerais do próximo turno removidas das pendências ativas administrativamente por solicitação do usuário
+
+        if (pendencies.length > 0) {
+            vehiclesWithPendencies.push({
+                fleetName: fleet.name,
+                fleetModel: fleet.model,
+                operatorName: latestChecklist.nome || 'Operador',
+                operatorMatricula: latestChecklist.matricula || '-',
+                shift: latestChecklist.turno || '-',
+                checklistId: latestChecklist.checklistId || latestChecklist.id,
+                date: latestChecklist.data || (latestChecklist.timestamp ? getTimestampDate(latestChecklist.timestamp).toLocaleDateString('pt-BR') : '--/--/----'),
+                timestamp: latestChecklist.timestamp ? getTimestampDate(latestChecklist.timestamp) : new Date(0),
+                pendencies: pendencies
+            });
+        }
+    });
+
+    // Atualiza o contador de veículos com problemas no topo
+    if (badgeCount) {
+        if (vehiclesWithPendencies.length > 0) {
+            badgeCount.textContent = `${vehiclesWithPendencies.length} Veículo(s) com Pendência`;
+            badgeCount.style.display = 'inline-block';
+        } else {
+            badgeCount.style.display = 'none';
+        }
+    }
+
+    if (vehiclesWithPendencies.length === 0) {
+        listContainer.innerHTML = `
+            <div class="all-clear-card">
+                <span class="all-clear-icon">✅</span>
+                <span class="all-clear-text">Todos os veículos em ordem!</span>
+                <span class="all-clear-sub">Não há pendências de checklist ativas nos turnos atuais.</span>
+            </div>
+        `;
+        return;
+    }
+
+    // Ordena veículos por data de pendência (mais recente primeiro)
+    vehiclesWithPendencies.sort((a, b) => b.timestamp - a.timestamp);
+
+    vehiclesWithPendencies.forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'pending-vehicle-card';
+        
+        // Formata data e hora legível
+        const dateOptions = { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' };
+        const dateStr = (item.timestamp instanceof Date && item.timestamp.getTime() > 0) ? 
+            item.timestamp.toLocaleDateString('pt-BR', dateOptions) : 
+            item.date;
+
+        let pendenciesHtml = '';
+        item.pendencies.forEach(p => {
+            let icon = '⚠️';
+            if (p.type === 'condition') icon = '❌';
+
+            pendenciesHtml += `
+                <div class="pending-issue-item">
+                    <span class="pending-issue-item-name">${icon} ${p.title}</span>
+                    <span class="pending-issue-item-details">"${p.details}"</span>
+                </div>
+            `;
+        });
+
+        card.innerHTML = `
+            <div class="pending-vehicle-card-header">
+                <div>
+                    <span class="pending-vehicle-name">${item.fleetName}</span>
+                    <span class="pending-vehicle-model">${item.fleetModel || '-'}</span>
+                </div>
+                <div class="pending-vehicle-meta">
+                    <span style="font-weight: 600;">Reg. #${item.checklistId}</span>
+                    <span>${dateStr}</span>
+                    <span>${item.operatorName} (${item.shift})</span>
+                </div>
+            </div>
+            <div class="pending-vehicle-body">
+                <span class="pending-issues-title">Pendências Ativas:</span>
+                <div class="pending-issues-list">
+                    ${pendenciesHtml}
+                </div>
+            </div>
+        `;
+
+        listContainer.appendChild(card);
+    });
+}
+
 async function handleDeleteChecklist(checklistId) {
     if (!confirm("Tem certeza que deseja apagar este relatório de checklist permanentemente do banco de dados?")) {
         return;
@@ -572,6 +734,7 @@ async function handleDeleteChecklist(checklistId) {
         await loadChecklistsData();
         renderChecklists();
         updateStats();
+        renderCurrentPendingIssues();
     } catch (error) {
         console.error("Erro ao deletar relatório:", error);
         alert("Erro ao excluir o relatório. Por favor, tente novamente.");

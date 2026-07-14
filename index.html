@@ -15,12 +15,12 @@
         rel="stylesheet">
 
     <!-- Link para o CSS externo -->
-    <link rel="stylesheet" href="style.css?v=3.1">
+    <link rel="stylesheet" href="style.css?v=3.2">
 
     <!-- PWA Manifest & Meta Tags -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#00c853">
-    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="icon" type="image/png" href="icon.png">
     <link rel="apple-touch-icon" href="icon.png">
@@ -211,12 +211,25 @@
                         <span class="validation-message" id="error-frota">Por favor, selecione um veículo válido da lista.</span>
 
                         <!-- Alerta de observação do turno anterior (Firestore query) -->
-                        <div class="next-shift-alert" id="prev-shift-notes-container" style="display: none;">
-                            <span class="alert-icon">⚠️</span>
-                            <div class="alert-content">
-                                <span class="alert-title">Aviso do Turno Anterior:</span>
-                                <p class="alert-text" id="prev-shift-notes-text">-</p>
-                                <span class="alert-meta" id="prev-shift-notes-meta">Operador: - | Turno: -</span>
+                        <div class="next-shift-alert" id="prev-shift-notes-container" style="display: none; flex-direction: column; gap: 15px;">
+                            <div style="display: flex; gap: 12px; align-items: flex-start; width: 100%;">
+                                <span class="alert-icon" id="prev-shift-alert-icon">⚠️</span>
+                                <div class="alert-content" style="flex: 1;">
+                                    <span class="alert-title" id="prev-shift-alert-title">Aviso do Turno Anterior:</span>
+                                    <p class="alert-text" id="prev-shift-notes-text" style="display: none;">-</p>
+                                    <span class="alert-meta" id="prev-shift-notes-meta">Operador: - | Turno: -</span>
+                                </div>
+                            </div>
+                            
+                            <!-- Seção de verificação de pendências -->
+                            <div id="pending-verification-section" style="display: none; width: 100%; border-top: 1px solid rgba(255, 179, 0, 0.15); padding-top: 12px;">
+                                <span class="alert-title" style="margin-bottom: 10px; display: block; font-size: 0.8rem; font-weight: 700; color: var(--color-warning); text-transform: uppercase; letter-spacing: 0.5px;">Verifique os itens fora de ordem:</span>
+                                <div id="pending-verification-list" style="display: flex; flex-direction: column; gap: 12px;">
+                                    <!-- Preenchido via JS -->
+                                </div>
+                                <span class="validation-message" id="error-pending-verification" style="display: none; margin-top: 10px; color: var(--color-danger); font-size: 0.85rem; font-weight: 600;">
+                                    Por favor, responda se cada pendência foi resolvida ou se continua pendente.
+                                </span>
                             </div>
                         </div>
                     </div>
@@ -612,7 +625,7 @@
     </div>
 
     <!-- Script da Aplicação -->
-    <script type="module" src="app.js"></script>
+    <script type="module" src="app.js?v=3.2"></script>
 </body>
 
 </html>
